@@ -5,6 +5,7 @@
 ## Repository
 
 - **GitHub:** [github.com/0x1d/nshde](https://github.com/0x1d/nshde)
+- **Origin (Cursor):** [origin.cursor.com/0x1d/nshde](https://origin.cursor.com/0x1d/nshde)
 
 ## Features
 
