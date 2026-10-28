@@ -24,7 +24,7 @@ await shot("04-runtime-stats");
 
 await page.locator("button", { hasText: "Implementer" }).click();
 await shot("05-agent-implementer");
-const textarea = page.locator("textarea");
+const textarea = page.getByPlaceholder("Describe the module to develop…");
 await textarea.fill("Build a todo list module");
 await page.getByRole("button", { name: "Develop module" }).click();
 await page.getByText("Generating NSH component").waitFor({ state: "hidden", timeout: 30000 }).catch(() => {});

@@ -1,5 +1,3 @@
-"use client";
-
 import { useCallback, useEffect, useState } from "react";
 import { Settings2 } from "lucide-react";
 import { ObjectTree, useObjectTree } from "./object-tree";
@@ -8,14 +6,8 @@ import { AgentPanel } from "./agent-panel";
 import { RuntimePanel } from "./runtime-panel";
 import type { StorageBackend } from "@/lib/storage/types";
 
-import type { TreeNode } from "./object-tree";
-
-interface IdeShellProps {
-  initialTree?: TreeNode[];
-}
-
-export function IdeShell({ initialTree = [] }: IdeShellProps) {
-  const { tree, refresh } = useObjectTree(initialTree);
+export function IdeShell() {
+  const { tree, refresh } = useObjectTree();
   const [selectedPath, setSelectedPath] = useState<string | null>("components/welcome.nsh.tsx");
   const [editorValue, setEditorValue] = useState("");
   const [dirty, setDirty] = useState(false);

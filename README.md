@@ -18,17 +18,27 @@
 
 ## Quick start
 
+Requires [Bun](https://bun.com/) 1.2+.
+
 ```bash
-npm install
-npm run dev -- --port 43123
+bun install
+bun run dev
 ```
 
-Open [http://localhost:43123](http://localhost:43123).
+Open [http://localhost:43123](http://localhost:43123) (override with `PORT`).
+
+Production build:
+
+```bash
+bun run build
+bun run start
+```
 
 ### Environment
 
 | Variable | Description |
 |----------|-------------|
+| `PORT` | HTTP port (default `43123`) |
 | `NSHDE_STORAGE` | `fs` (default), `memory`, or `s3` |
 | `NSHDE_S3_BUCKET` | S3 bucket name |
 | `NSHDE_S3_PREFIX` | Key prefix inside the bucket |
@@ -42,6 +52,8 @@ Open [http://localhost:43123](http://localhost:43123).
 4. Click **run** on any module in the object tree to remount, or edit and **Save** to hot-reload.
 
 ## Architecture
+
+The app runs on **Bun’s fullstack toolkit**: `Bun.serve` with HTML entry (`index.html`) for the React UI and typed HTTP routes for the API. Tailwind v4 is wired through `bun-plugin-tailwind` in `bunfig.toml`.
 
 ```
 ┌─────────────┬──────────────────────┬──────────────┐

@@ -1,9 +1,7 @@
-"use client";
-
-import dynamic from "next/dynamic";
+import { lazy, Suspense } from "react";
 import { cn } from "@/lib/utils";
 
-const Monaco = dynamic(() => import("@monaco-editor/react"), { ssr: false });
+const Monaco = lazy(() => import("@monaco-editor/react"));
 
 interface CodeEditorProps {
   path: string | null;
@@ -47,21 +45,29 @@ export function CodeEditor({
         </button>
       </div>
       <div className="min-h-0 flex-1">
-        <Monaco
-          height="100%"
-          language={language}
-          theme="vs-dark"
-          value={value}
-          onChange={(v) => onChange(v ?? "")}
-          options={{
-            minimap: { enabled: false },
-            fontSize: 13,
-            fontFamily: "var(--font-geist-mono), monospace",
-            readOnly,
-            scrollBeyondLastLine: false,
-            padding: { top: 12 },
-          }}
-        />
+        <Suspense
+          fallback={
+            <div className="flex h-full items-center justify-center text-xs text-zinc-500">
+              Loading editor…
+            </div>
+          }
+        >
+          <Monaco
+            height="100%"
+            language={language}
+            theme="vs-dark"
+            value={value}
+            onChange={(v) => onChange(v ?? "")}
+            options={{
+              minimap: { enabled: false },
+              fontSize: 13,
+              fontFamily: "var(--font-geist-mono), monospace",
+              readOnly,
+              scrollBeyondLastLine: false,
+              padding: { top: 12 },
+            }}
+          />
+        </Suspense>
       </div>
     </div>
   );

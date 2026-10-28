@@ -1,5 +1,3 @@
-"use client";
-
 import { transform } from "sucrase";
 import React from "react";
 
@@ -37,12 +35,12 @@ export async function loadWasmModule(
   path: string,
   bytes: Uint8Array,
 ): Promise<{ instance: WebAssembly.Instance; renderHtml: () => string }> {
-  let memoryRef: WebAssembly.Memory | undefined;
+  const memorySlot: { mem?: WebAssembly.Memory } = {};
   const imports = {
     nsh_host: {
       log: (ptr: number, len: number) => {
-        if (!memoryRef) return;
-        const view = new Uint8Array(memoryRef.buffer, ptr, len);
+        if (!memorySlot.mem) return;
+        const view = new Uint8Array(memorySlot.mem.buffer, ptr, len);
         console.info("[wasm]", new TextDecoder().decode(view));
       },
     },
@@ -51,10 +49,10 @@ export async function loadWasmModule(
   const instance = (
     "instance" in instantiated ? instantiated.instance : instantiated
   ) as WebAssembly.Instance;
-  memoryRef = instance.exports.memory as WebAssembly.Memory | undefined;
+  memorySlot.mem = instance.exports.memory as WebAssembly.Memory | undefined;
 
   const render = instance.exports.render as (() => number) | undefined;
-  const memory = memoryRef;
+  const memory = memorySlot.mem;
 
   return {
     instance,
