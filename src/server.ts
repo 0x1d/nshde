@@ -14,6 +14,7 @@ const server = Bun.serve({
   port,
   routes: {
     "/": homepage,
+    "/favicon.ico": Bun.file("public/favicon.ico"),
     "/api/agents": {
       GET: handleAgentsGet,
       POST: handleAgentsPost,
