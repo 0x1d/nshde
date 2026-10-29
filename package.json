@@ -4,27 +4,17 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "bun --hot src/server.ts",
+    "dev:api": "bun --hot src/server.ts",
+    "dev:ui": "nsh run App.tsx --target web",
+    "dev": "bun run dev:api & nsh run App.tsx --target web",
     "build": "bun build src/server.ts --target=bun --outdir dist --minify",
     "start": "NODE_ENV=production bun dist/server.js",
     "lint": "eslint"
   },
   "dependencies": {
-    "@monaco-editor/react": "^4.7.0",
-    "@radix-ui/react-dialog": "^1.3.1",
-    "@radix-ui/react-dropdown-menu": "^2.2.1",
-    "@radix-ui/react-scroll-area": "^1.4.0",
-    "@radix-ui/react-separator": "^1.2.0",
-    "@radix-ui/react-tabs": "^1.2.1",
-    "@radix-ui/react-tooltip": "^1.4.1",
-    "class-variance-authority": "^0.7.1",
-    "clsx": "^2.1.1",
-    "lucide-react": "^1.63.0",
-    "monaco-editor": "^0.57.0",
     "react": "19.3.0",
     "react-dom": "19.3.0",
-    "sucrase": "^3.35.1",
-    "tailwind-merge": "^3.7.0"
+    "sucrase": "^3.35.1"
   },
   "devDependencies": {
     "@eslint/js": "^9",

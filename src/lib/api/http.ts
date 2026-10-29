@@ -9,7 +9,11 @@ import type { StorageBackend } from "@/lib/storage/types";
 import { FsStorage } from "@/lib/storage/fs-storage";
 
 function json(data: unknown, init?: ResponseInit) {
-  return Response.json(data, init);
+  const headers = new Headers(init?.headers);
+  headers.set("Access-Control-Allow-Origin", "*");
+  headers.set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
+  headers.set("Access-Control-Allow-Headers", "Content-Type");
+  return Response.json(data, { ...init, headers });
 }
 
 export function handleAgentsGet() {
@@ -91,6 +95,9 @@ export async function handleStorageGet(req: Request) {
         headers: {
           "Content-Type": "application/wasm",
           "X-Nshde-Path": path,
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
+          "Access-Control-Allow-Headers": "Content-Type",
         },
       });
     }
