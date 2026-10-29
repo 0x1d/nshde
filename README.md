@@ -18,7 +18,17 @@
 
 ## Quick start
 
-Requires [Bun](https://bun.com/) 1.2+ and the [NSH CLI](https://nsh.dev/docs/installation) (`nsh` on your `PATH`).
+Requires [Bun](https://bun.com/) 1.2+ and the [NSH CLI](https://nsh.dev/docs/installation).
+
+**Install NSH** (if `bun run check:nsh` fails):
+
+```bash
+curl -fsSL https://nsh.dev/install.sh | sh
+export PATH="$HOME/.local/bin:$PATH"   # add to ~/.bashrc / ~/.zshrc to persist
+bun run check:nsh                      # should print nsh version
+```
+
+`dev:ui` uses `scripts/nsh-run.sh`, which looks for `nsh` on `PATH`, then `~/.local/bin/nsh`, then `~/.nsh/bin/nsh` (override with `NSH_BIN`).
 
 ```bash
 bun install

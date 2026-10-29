@@ -5,8 +5,9 @@
   "type": "module",
   "scripts": {
     "dev:api": "bun --hot src/server.ts",
-    "dev:ui": "nsh run App.tsx --target web",
-    "dev": "bun run dev:api & nsh run App.tsx --target web",
+    "dev:ui": "bash scripts/nsh-run.sh run App.tsx --target web",
+    "dev": "bun run dev:api & bash scripts/nsh-run.sh run App.tsx --target web",
+    "check:nsh": "bash scripts/nsh-run.sh --version",
     "build": "bun build src/server.ts --target=bun --outdir dist --minify",
     "start": "NODE_ENV=production bun dist/server.js",
     "lint": "eslint"
