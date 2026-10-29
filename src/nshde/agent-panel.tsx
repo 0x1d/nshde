@@ -47,29 +47,7 @@ export function AgentPanelView() {
   }
 
   return (
-    <View class="flex-1 bg-card">
-      <View class="border-b border-border px-3 py-2">
-        <Text class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Agents</Text>
-        <View class="mt-2 flex-row flex-wrap gap-1">
-          <Tabs class="flex-row flex-wrap gap-1">
-            <Each of={agents()}>
-              {(agent) => (
-                <Tab
-                  selected={activeAgent() === agent().id}
-                  onPress={() => activeAgent.set(agent().id)}
-                  class="rounded-full px-2.5 py-1 text-xs font-medium selected:bg-accent selected:text-foreground text-muted-foreground hover:bg-accent/60"
-                >
-                  <Text class="text-xs font-medium">{agent().name}</Text>
-                </Tab>
-              )}
-            </Each>
-          </Tabs>
-        </View>
-        <If when={activeMeta()}>
-          {(meta) => <Text class="mt-2 text-[11px] leading-snug text-muted-foreground">{meta().role}</Text>}
-        </If>
-      </View>
-
+    <View class="flex-1 bg-inset">
       <Scroll class="flex-1 p-3" contentClass="gap-2">
         <If when={messages().length === 0}>
           <Text class="text-xs text-muted-foreground">
@@ -79,9 +57,9 @@ export function AgentPanelView() {
         <Each of={messages()}>
           {(msg) => (
             <View
-              class={`rounded-lg px-3 py-2 ${msg().role === "user" ? "ml-4 bg-brand/10" : "mr-2 bg-muted"}`}
+              class={`rounded-lg px-3 py-2 ${msg().role === "user" ? "ml-4 bg-brand-tint" : "mr-2 bg-card"}`}
             >
-              <Text class="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground">
+              <Text class="mb-1 text-[10px] uppercase tracking-wide text-faint">
                 {msg().role === "user" ? "You" : msg().agentId}
               </Text>
               <If
@@ -101,7 +79,25 @@ export function AgentPanelView() {
         </View>
       </If>
 
-      <View class="gap-2 border-t border-border p-3">
+      <View class="gap-2 border-t border-line p-3">
+        <If when={activeMeta()}>
+          {(meta) => <Text class="text-[11px] leading-snug text-muted-foreground">{meta().role}</Text>}
+        </If>
+        <View class="flex-row flex-wrap gap-1">
+          <Tabs class="flex-row flex-wrap gap-1">
+            <Each of={agents()}>
+              {(agent) => (
+                <Tab
+                  selected={activeAgent() === agent().id}
+                  onPress={() => activeAgent.set(agent().id)}
+                  class="rounded-full px-2.5 py-1 text-xs font-medium selected:bg-brand selected:text-[#0c0c0e] text-muted-foreground hover:bg-hover"
+                >
+                  <Text class="text-xs font-medium">{agent().name}</Text>
+                </Tab>
+              )}
+            </Each>
+          </Tabs>
+        </View>
         <Input
           value={prompt()}
           onChange={(value) => prompt.set(typeof value === "string" ? value : "")}

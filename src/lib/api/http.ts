@@ -3,10 +3,10 @@ import {
   getStorageBackend,
   getStorageProvider,
   getStorageProviderReady,
+  getStorageTree,
   setStorageBackend,
 } from "@/lib/storage/registry";
 import type { StorageBackend } from "@/lib/storage/types";
-import { FsStorage } from "@/lib/storage/fs-storage";
 
 function json(data: unknown, init?: ResponseInit) {
   const headers = new Headers(init?.headers);
@@ -73,11 +73,7 @@ export async function handleStorageGet(req: Request) {
   const tree = url.searchParams.get("tree");
 
   if (tree === "1") {
-    const p = provider as FsStorage;
-    const data =
-      "tree" in p && typeof p.tree === "function"
-        ? await p.tree("components")
-        : await provider.list("components");
+    const data = await getStorageTree();
     return json({
       backend: getStorageBackend(),
       tree: data,

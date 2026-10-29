@@ -70,9 +70,25 @@ export async function setStorageBackend(backend: StorageBackend): Promise<void> 
 }
 
 export async function getStorageTree() {
-  const provider = getStorageProvider();
+  const provider = await getStorageProviderReady();
   if ("tree" in provider && typeof provider.tree === "function") {
-    return provider.tree("components");
+    const children = await provider.tree("components");
+    return [
+      {
+        path: "components",
+        name: "components",
+        kind: "directory" as const,
+        children,
+      },
+    ];
   }
-  return provider.list("components");
+  const flat = await provider.list("components");
+  return [
+    {
+      path: "components",
+      name: "components",
+      kind: "directory" as const,
+      children: flat,
+    },
+  ];
 }

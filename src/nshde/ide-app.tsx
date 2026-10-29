@@ -1,10 +1,18 @@
-import { signal, Text, untracked, View } from "nsh";
+import { Image, Text, untracked, View } from "nsh";
 import { keymap } from "nsh";
-import { Button, DockArea, type DockAreaLayout, Sheet } from "nsh/base";
-import { windowSize } from "nsh";
+import { platform, windowSize } from "nsh";
+import { Button, DockArea, type DockAreaRef, Sheet } from "nsh/base";
 import type { StorageBackend } from "../lib/storage/types";
+import logo from "../../assets/logo.svg";
 import { AgentPanelView } from "./agent-panel";
+import {
+  dockRegionTitle,
+  panelRegistry,
+  pathFromFilePanel,
+  tabTitle,
+} from "./dock-layout";
 import { EditorPanelView } from "./editor-panel";
+import { IconClose, IconPanelHide } from "./icons";
 import { ObjectTreePanelView } from "./object-tree-panel";
 import { RuntimePanelView } from "./runtime-panel";
 import {
@@ -13,58 +21,35 @@ import {
   bootIdeData,
   changeBackend,
   dirty,
+  dockLayout,
+  isFilePanel,
   saveFile,
   settingsOpen,
+  syncActiveEditorFromLayout,
 } from "./store";
 
-const PANEL_TITLES: Record<string, string> = {
-  tree: "Object tree",
-  editor: "Editor",
-  runtime: "Runtime preview",
-  agents: "Agents",
-};
-
-function initialLayout(): DockAreaLayout {
-  return {
-    center: {
-      type: "split",
-      axis: "vertical",
-      children: [
-        { type: "tabs", panels: ["editor"], activeIndex: 0 },
-        { type: "tabs", panels: ["runtime"], activeIndex: 0 },
-      ],
-      sizes: [null, 240],
-    },
-    left: { layout: { type: "tabs", panels: ["tree"] }, size: 240, open: true },
-    right: { layout: { type: "tabs", panels: ["agents"] }, size: 320, open: true },
-  };
-}
+const handleThumb =
+  "rounded-full bg-border opacity-0 transition-opacity hover:opacity-100 data-[dragging=true]:opacity-100";
 
 export function IdeApp() {
   bootIdeData();
-  const layout = signal<DockAreaLayout>(initialLayout());
+  const layout = dockLayout;
   const wide = () => untracked(windowSize).width >= 900;
+  const pointer = platform.desktop;
+  let area!: DockAreaRef;
 
   keymap.bind("mod+s", () => {
     if (dirty()) void saveFile();
   });
 
-  const handleThumb =
-    "rounded-full bg-border opacity-0 transition-opacity hover:opacity-100 data-[dragging=true]:opacity-100";
-
   return (
     <View class="flex-1 bg-background">
-      <View class="h-11 flex-row items-center justify-between border-b border-border px-4">
-        <View class="flex-row items-center gap-3">
-          <View class="size-8 items-center justify-center rounded-lg bg-primary">
-            <Text class="text-sm font-bold text-primary-foreground">N</Text>
-          </View>
-          <View class="gap-0.5">
-            <Text class="text-sm font-semibold text-foreground">nshde</Text>
-            <Text class="text-[11px] text-muted-foreground">Recursive IDE · NSH shell</Text>
-          </View>
+      <View class="relative h-11 flex-row items-center border-b border-line px-3">
+        <View class="pointer-events-none absolute inset-0 flex-row items-center justify-center gap-2">
+          <Image src={logo} class="size-7" accessibilityLabel="nshde logo" />
+          <Text class="text-sm font-semibold tracking-tight text-foreground">nshde</Text>
         </View>
-        <View class="flex-row items-center gap-2">
+        <View class="ml-auto flex-row items-center gap-2">
           <If when={wide()}>
             <Text class="text-[11px] text-muted-foreground">
               Storage: <Text class="text-foreground">{backend()}</Text>
@@ -73,7 +58,7 @@ export function IdeApp() {
           <Button
             onPress={() => settingsOpen.set(true)}
             accessibilityLabel="Storage settings"
-            class="size-8 items-center justify-center rounded-md hover:bg-accent active:opacity-70"
+            class="size-8 items-center justify-center rounded-md hover:bg-hover active:opacity-70"
           >
             <Text class="text-sm text-muted-foreground">⚙</Text>
           </Button>
@@ -90,61 +75,101 @@ export function IdeApp() {
 
       <If when={dirty()}>
         <View class="border-b border-warn/30 bg-warn/10 px-4 py-1">
-          <Text class="text-center text-xs text-warn">Unsaved changes — press Save in the editor or ⌘/Ctrl+S</Text>
+          <Text class="text-center text-xs text-warn">Unsaved changes — Save icon in editor or ⌘/Ctrl+S</Text>
         </View>
       </If>
 
-      <View class="flex-1">
-        <DockArea
-          class="flex-1"
-          layout={layout()}
-          onLayoutChange={({ layout: next }) => layout.set(next)}
-          panels={[
-            { id: "tree", closable: false },
-            { id: "editor", closable: false },
-            { id: "runtime", closable: false },
-            { id: "agents", closable: false },
-          ]}
-          groupClass="flex-1 bg-card"
-          tabBarClass="flex-row border-b border-border"
-          contentClass="flex-1"
-          handleAccessibilityLabel="Resize panel"
-          handleClass="basis-px bg-border"
-          handleThumbClass={handleThumb}
-          dockClass="bg-card border-border"
-          sheetClass="h-72 rounded-t-2xl border-t border-border bg-card"
-          backdropClass="bg-black/40"
-          renderTab={(tab) => (
-            <View class="h-8 flex-row items-center gap-2 px-3">
-              <Text
-                class={`truncate text-xs font-medium ${tab.active ? "text-foreground" : "text-muted-foreground"}`}
-              >
-                {PANEL_TITLES[tab.panel] ?? tab.panel}
-              </Text>
-              <If when={tab.active}>
-                <View class="absolute bottom-0 left-3 right-3 h-0.5 rounded-full bg-primary" />
-              </If>
-            </View>
-          )}
-          renderPanel={(panel) => {
-            switch (panel.id) {
-              case "tree":
-                return <ObjectTreePanelView />;
-              case "editor":
-                return <EditorPanelView />;
-              case "runtime":
-                return <RuntimePanelView />;
-              case "agents":
-                return <AgentPanelView />;
-              default:
+      <View class="flex-1 p-3">
+        <View class="flex-1 overflow-hidden rounded-xl border border-border bg-card p-1">
+          <View class="flex-1 overflow-hidden rounded-lg border border-line bg-inset">
+            <DockArea
+              ref={area}
+              class="flex-1"
+              layout={layout()}
+              onLayoutChange={({ layout: next }) => {
+                layout.set(next);
+                syncActiveEditorFromLayout(next);
+              }}
+              panels={panelRegistry(layout())}
+              groupClass="flex-1 bg-inset"
+              tabBarClass="flex-row gap-1 border-b border-line"
+              tabClass="group"
+              contentClass="flex-1"
+              handleAccessibilityLabel="Resize panel"
+              handleClass="basis-px bg-line"
+              handleThumbClass={handleThumb}
+              dockClass="bg-inset"
+              dropIndicatorClass="rounded-lg border-2 border-brand bg-brand-tint"
+              drawerClass="border-r border-border bg-card"
+              sheetClass="rounded-t-2xl border-t border-border bg-card"
+              backdropClass="bg-black/40"
+              renderTab={(tab) => (
+                <View testID={`tab-${tab.panel}`} class="h-9 flex-row items-center gap-1 px-3">
+                  <Text
+                    style={{ numberOfLines: 1 }}
+                    class={`max-w-44 text-[13px] font-medium ${tab.active ? "text-foreground" : "text-muted-foreground group-hover:text-foreground"}`}
+                  >
+                    {tabTitle(tab.panel)}
+                  </Text>
+                  <If when={tab.closable && (pointer || tab.active)}>
+                    <Button
+                      onPress={() => area.closePanel(tab.panel)}
+                      accessibilityLabel={`Close ${tabTitle(tab.panel)}`}
+                      class={
+                        pointer
+                          ? "absolute right-1 top-2 size-5 items-center justify-center rounded-md bg-inset opacity-0 transition-opacity group-hover:opacity-100 hover:bg-raised"
+                          : "-mr-1.5 size-5 items-center justify-center rounded-md active:opacity-70"
+                      }
+                    >
+                      <IconClose />
+                    </Button>
+                  </If>
+                  <If when={tab.active}>
+                    <View
+                      style={{ pointerEvents: "none" }}
+                      class="absolute bottom-0 left-3 right-3 h-0.5 rounded-full bg-brand"
+                    />
+                  </If>
+                </View>
+              )}
+              renderDock={(dock) => (
+                <View class="h-7 flex-row items-center justify-end border-b border-line px-1">
+                  <Button
+                    onPress={() => area.toggleDock(dock.placement)}
+                    accessibilityLabel={`Hide ${dockRegionTitle(dock.placement)}`}
+                    class="size-7 items-center justify-center rounded-md hover:bg-hover active:opacity-70"
+                  >
+                    <IconPanelHide />
+                  </Button>
+                </View>
+              )}
+              renderDragPreview={(tab) => (
+                <View class="rounded-lg border border-border bg-raised px-3 py-1.5">
+                  <Text class="text-[13px] font-medium text-foreground">{tabTitle(tab.panel)}</Text>
+                </View>
+              )}
+              renderPanel={(panel) => {
+                if (panel.id === "tree") return <ObjectTreePanelView />;
+                if (panel.id === "runtime") return <RuntimePanelView />;
+                if (panel.id === "agents") return <AgentPanelView />;
+                const path = pathFromFilePanel(panel.id);
+                if (path) return <EditorPanelView path={path} />;
+                if (isFilePanel(panel.id)) return null;
                 return (
                   <View class="flex-1 items-center justify-center">
                     <Text class="text-sm text-muted-foreground">Unknown panel</Text>
                   </View>
                 );
-            }
-          }}
-        />
+              }}
+              renderEmpty={() => (
+                <View class="flex-1 items-center justify-center gap-1">
+                  <Text class="text-sm font-semibold text-foreground">No editor tabs open</Text>
+                  <Text class="text-xs text-muted-foreground">Pick a file from the object tree</Text>
+                </View>
+              )}
+            />
+          </View>
+        </View>
       </View>
 
       <Sheet open={settingsOpen()} onOpenChange={(open) => settingsOpen.set(open)}>
