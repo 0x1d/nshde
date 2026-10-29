@@ -1,35 +1,33 @@
+import { keymap, Text, View } from "nsh";
 import { Button, Editor, type EditorRef } from "nsh/base";
-import { keymap } from "nsh";
-import { Text, View } from "nsh";
+import {
+  dirty,
+  editorMountKey,
+  editorValue,
+  languageForPath,
+  loadingFile,
+  saveFile,
+  selectedPath,
+} from "./store";
 
-interface EditorPanelProps {
-  path: string | null;
-  value: string;
-  loading: boolean;
-  mountKey: number;
-  language: "typescript" | "json" | "plaintext";
-  onChange: (value: string) => void;
-  onSave: () => void;
-}
-
-export function EditorPanel({ path, value, loading, mountKey, language, onChange, onSave }: EditorPanelProps) {
+export function EditorPanelView() {
   let editor: EditorRef | undefined;
-  const readOnly = path?.endsWith(".wasm") ?? false;
 
   keymap.bind("mod+s", () => {
-    if (!readOnly && path) onSave();
+    const path = selectedPath();
+    if (path && !path.endsWith(".wasm")) void saveFile();
     editor?.focus();
   });
 
   return (
     <View class="flex-1 bg-inset">
       <View class="h-9 flex-row items-center justify-between border-b border-border px-3">
-        <Text style={{ numberOfLines: 1 }} class="flex-1 font-mono text-xs text-muted-foreground">
-          {path ?? "No file selected"}
+        <Text class="flex-1 truncate font-mono text-xs text-muted-foreground">
+          {selectedPath() ?? "No file selected"}
         </Text>
         <Button
-          onPress={onSave}
-          disabled={!path || readOnly}
+          onPress={() => void saveFile()}
+          disabled={!selectedPath() || selectedPath()!.endsWith(".wasm")}
           accessibilityLabel="Save file"
           class="rounded-md px-2.5 py-1 text-xs font-medium disabled:opacity-40 bg-brand text-[#0c0c0e] hover:opacity-90 active:opacity-80"
         >
@@ -37,20 +35,7 @@ export function EditorPanel({ path, value, loading, mountKey, language, onChange
         </Button>
       </View>
       <View class="flex-1">
-        <If
-          when={loading}
-          else={
-            <EditorBody
-              mountKey={mountKey}
-              path={path}
-              value={value}
-              language={language}
-              readOnly={readOnly}
-              onChange={onChange}
-              editorRef={(r) => (editor = r)}
-            />
-          }
-        >
+        <If when={loadingFile()} else={<EditorBody editorRef={(r) => (editor = r)} />}>
           <View class="flex-1 items-center justify-center">
             <Text class="text-xs text-muted-foreground">Loading file…</Text>
           </View>
@@ -60,29 +45,26 @@ export function EditorPanel({ path, value, loading, mountKey, language, onChange
   );
 }
 
-function EditorBody(props: {
-  mountKey: number;
-  path: string | null;
-  value: string;
-  language: "typescript" | "json" | "plaintext";
-  readOnly: boolean;
-  onChange: (value: string) => void;
-  editorRef: (ref: EditorRef) => void;
-}) {
+function EditorBody(props: { editorRef: (ref: EditorRef) => void }) {
   return (
     <View class="flex-1 bg-card">
       {() => {
-        void props.mountKey;
+        void editorMountKey();
+        const path = selectedPath();
+        const readOnly = path?.endsWith(".wasm") ?? false;
         return (
           <Editor
             ref={props.editorRef}
-            defaultValue={props.value}
-            language={props.language}
+            defaultValue={editorValue()}
+            language={languageForPath(path)}
             lineNumbers
             softWrap={false}
-            readOnly={props.readOnly}
-            onChange={({ value }) => props.onChange(value)}
-            accessibilityLabel={props.path ?? "Editor"}
+            readOnly={readOnly}
+            onChange={({ value }) => {
+              editorValue.set(value);
+              dirty.set(true);
+            }}
+            accessibilityLabel={path ?? "Editor"}
             class="flex-1 font-mono text-[13px]"
           />
         );

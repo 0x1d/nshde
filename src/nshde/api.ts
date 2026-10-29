@@ -16,8 +16,12 @@ const defaultBase = () =>
 
 async function apiBase(): Promise<string> {
   if (host.available()) {
-    const info = (await host.call("nshde.apiBase", {})) as { base: string };
-    return info.base;
+    try {
+      const info = (await host.call("nshde.apiBase", {})) as { base: string };
+      if (info.base) return info.base;
+    } catch {
+      /* fall through to fetch */
+    }
   }
   return defaultBase();
 }
@@ -37,66 +41,64 @@ async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-export async function loadConfig(): Promise<{ backend: StorageBackend }> {
+async function hostOrFetch<T>(name: string, args: Record<string, unknown>, fetchFn: () => Promise<T>): Promise<T> {
   if (host.available()) {
-    return host.call("nshde.config", {}) as Promise<{ backend: StorageBackend }>;
+    try {
+      return (await host.call(name, args)) as T;
+    } catch {
+      /* host bridge failed — use direct fetch */
+    }
   }
-  return fetchJson("/api/config");
+  return fetchFn();
+}
+
+export async function loadConfig(): Promise<{ backend: StorageBackend }> {
+  return hostOrFetch("nshde.config", {}, () => fetchJson("/api/config"));
 }
 
 export async function loadTree(): Promise<{ tree: TreeNode[]; backend: StorageBackend }> {
-  if (host.available()) {
-    return host.call("nshde.storage.tree", {}) as Promise<{
-      tree: TreeNode[];
-      backend: StorageBackend;
-    }>;
-  }
-  return fetchJson("/api/storage?tree=1");
+  return hostOrFetch("nshde.storage.tree", {}, () => fetchJson("/api/storage?tree=1"));
 }
 
 export async function readFile(path: string): Promise<string> {
   if (path.endsWith(".wasm")) {
     return "// Binary WASM — edit via agent or external toolchain";
   }
-  if (host.available()) {
-    const data = (await host.call("nshde.storage.read", { path })) as { content?: string };
-    return data.content ?? "";
-  }
-  const data = await fetchJson<{ content?: string }>(
-    `/api/storage?path=${encodeURIComponent(path)}`,
+  const data = await hostOrFetch("nshde.storage.read", { path }, () =>
+    fetchJson<{ content?: string }>(`/api/storage?path=${encodeURIComponent(path)}`),
   );
-  return data.content ?? "";
+  return (data as { content?: string }).content ?? "";
 }
 
 export async function writeFile(path: string, content: string): Promise<void> {
-  if (host.available()) {
-    await host.call("nshde.storage.write", { path, content });
-    return;
-  }
-  await fetchJson("/api/storage", {
-    method: "POST",
-    body: JSON.stringify({ path, content }),
-  });
+  await hostOrFetch(
+    "nshde.storage.write",
+    { path, content },
+    () =>
+      fetchJson("/api/storage", {
+        method: "POST",
+        body: JSON.stringify({ path, content }),
+      }),
+  );
 }
 
 export async function setBackend(backend: StorageBackend): Promise<void> {
-  if (host.available()) {
-    await host.call("nshde.storage.backend", { backend });
-    return;
-  }
-  await fetchJson("/api/storage", {
-    method: "POST",
-    body: JSON.stringify({ backend }),
-  });
+  await hostOrFetch(
+    "nshde.storage.backend",
+    { backend },
+    () =>
+      fetchJson("/api/storage", {
+        method: "POST",
+        body: JSON.stringify({ backend }),
+      }),
+  );
 }
 
 export async function listAgents(): Promise<AgentDefinition[]> {
-  if (host.available()) {
-    const data = (await host.call("nshde.agents.list", {})) as { agents: AgentDefinition[] };
-    return data.agents;
-  }
-  const data = await fetchJson<{ agents: AgentDefinition[] }>("/api/agents");
-  return data.agents;
+  const data = await hostOrFetch("nshde.agents.list", {}, () =>
+    fetchJson<{ agents: AgentDefinition[] }>("/api/agents"),
+  );
+  return (data as { agents: AgentDefinition[] }).agents;
 }
 
 export async function generateModule(
@@ -107,17 +109,12 @@ export async function generateModule(
   generatedPath?: string;
   source?: string;
 }> {
-  if (host.available()) {
-    return host.call("nshde.agents.generate", { prompt, agentId }) as Promise<{
-      messages: AgentMessage[];
-      generatedPath?: string;
-      source?: string;
-    }>;
-  }
-  return fetchJson("/api/agents", {
-    method: "POST",
-    body: JSON.stringify({ prompt, agentId }),
-  });
+  return hostOrFetch("nshde.agents.generate", { prompt, agentId }, () =>
+    fetchJson("/api/agents", {
+      method: "POST",
+      body: JSON.stringify({ prompt, agentId }),
+    }),
+  );
 }
 
 export async function previewUrl(path: string | null, revision: number): Promise<string> {
