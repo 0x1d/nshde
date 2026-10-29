@@ -5,7 +5,6 @@ import { S3Storage } from "./s3-storage";
 import { SEED_FILES } from "./seed";
 
 declare global {
-  // eslint-disable-next-line no-var
   var __nshdeStorage: { backend: StorageBackend; provider: StorageProvider } | undefined;
 }
 

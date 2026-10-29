@@ -1,5 +1,3 @@
-"use client";
-
 import { ChevronDown, ChevronRight, FileCode2, Folder } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
