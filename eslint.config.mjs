@@ -12,5 +12,9 @@ export default defineConfig([
       globals: globals.node,
     },
   },
-  globalIgnores(["dist/**", "node_modules/**"]),
+  globalIgnores(["dist/**", "node_modules/**", ".nsh/**"]),
+  {
+    files: ["host.js"],
+    languageOptions: { globals: globals.browser },
+  },
 ]);

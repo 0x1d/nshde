@@ -9,36 +9,49 @@
 
 ## Features
 
-- **App shell** — three-pane layout: object tree, Monaco editor, multi-agent panel
+- **NSH app shell** — `DockArea` workspace: object tree, `Editor`, agent panel, runtime preview (gallery-style layout)
 - **Object tree** — components and files under `components/`, developed through nshde
-- **Code editor** — syntax highlighting for TSX/JSON via Monaco
-- **Agent panel** — Architect, Implementer, and Reviewer agents (template-driven generation; plug in an LLM via the API layer)
+- **Code editor** — `nsh/base` `Editor` with syntax highlighting for TSX/JSON
+- **Agent panel** — Architect, Implementer, and Reviewer agents with `Tabs`, `TextView`, and chat-style composer
 - **Configurable storage** — `fs` (default, `.nshde-data/`), `memory`, or `s3` (AWS SDK hook; falls back to in-memory demo when creds are absent)
-- **Runtime loading** — `.nsh.tsx` modules compiled with Sucrase in a sandbox; `.wasm` modules instantiated with host imports
+- **Runtime loading** — `.nsh.tsx` modules compiled with Sucrase in a `/preview` sandbox; `.wasm` modules instantiated with host imports
 
 ## Quick start
 
-Requires [Bun](https://bun.com/) 1.2+.
+Requires [Bun](https://bun.com/) 1.2+ and the [NSH CLI](https://nsh.dev/docs/installation) (`nsh` on your `PATH`).
 
 ```bash
 bun install
+bun run dev:api    # terminal 1 — API on http://localhost:43123
+bun run dev:ui     # terminal 2 — NSH IDE in the browser (nsh dev server)
+```
+
+Or both:
+
+```bash
 bun run dev
 ```
 
-Open [http://localhost:43123](http://localhost:43123) (override with `PORT`).
+Open the URL printed by `nsh run` (typically `http://127.0.0.1:8790/`). The API stays on port `43123` unless you set `PORT`.
 
-Production build:
+Production API build:
 
 ```bash
 bun run build
 bun run start
 ```
 
+Package the NSH UI for static hosting:
+
+```bash
+nsh package App.tsx --target web
+```
+
 ### Environment
 
 | Variable | Description |
 |----------|-------------|
-| `PORT` | HTTP port (default `43123`) |
+| `PORT` | HTTP port for the Bun API (default `43123`) |
 | `NSHDE_STORAGE` | `fs` (default), `memory`, or `s3` |
 | `NSHDE_S3_BUCKET` | S3 bucket name |
 | `NSHDE_S3_PREFIX` | Key prefix inside the bucket |
@@ -53,11 +66,12 @@ bun run start
 
 ## Architecture
 
-The app runs on **Bun’s fullstack toolkit**: `Bun.serve` with HTML entry (`index.html`) for the React UI and typed HTTP routes for the API. Tailwind v4 is wired through `bun-plugin-tailwind` in `bunfig.toml`.
+The **IDE shell** is an NSH TSX app (`App.tsx`, `nsh run --target web`). The **Bun server** serves `/api/*`, CORS for the dev host, and `/preview` (React sandbox iframe inside `WebView`).
 
 ```
 ┌─────────────┬──────────────────────┬──────────────┐
 │ Object tree │ Editor + Runtime     │ Agent panel  │
+│  (Dock)     │ (Dock · Editor)      │ (Dock·Tabs)  │
 └──────┬──────┴──────────┬───────────┴──────┬───────┘
        │                 │                  │
        └────────┬────────┴────────┬─────────┘
@@ -68,14 +82,14 @@ The app runs on **Bun’s fullstack toolkit**: `Bun.serve` with HTML entry (`ind
      StorageProvider (fs | memory | s3)
                 │
                 ▼
-     Runtime loader (TSX sandbox | WASM)
+     /preview (TSX sandbox | WASM)
 ```
 
-TSX modules only allow `react` imports today—a deliberate sandbox aligned with NSH capability grants. WASM modules can export `memory`, `render`, and use `nsh_host.log`.
+User modules in the preview still use a deliberate React sandbox today; the chrome follows NSH gallery components (`Dock`, `Editor`, chat, `Tabs`).
 
 ## Relation to NSH
 
-[NSH](https://nsh.dev/) targets native platforms with Rust/TSX, signed `.nshpkg` packages, and QuickJS sandboxes. **nshde** models the same loop for IDE self-development on the web: agents → stored modules → runtime integration. A production path would add signing, capability tokens, and the real `nsh` CLI toolchain for multi-target packaging.
+[NSH](https://nsh.dev/) targets native platforms with Rust/TSX, signed `.nshpkg` packages, and QuickJS sandboxes. **nshde** models the same loop for IDE self-development on the web: agents → stored modules → runtime integration. A production path would add signing, capability tokens, and compiling user modules with the real `nsh` toolchain for multi-target packaging.
 
 ## License
 
