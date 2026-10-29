@@ -1,9 +1,8 @@
-import { keymap, Text, View } from "nsh";
+import { Text, View } from "nsh";
 import { Editor, type EditorRef } from "nsh/base";
 import { IconButton, IconSave } from "./icons";
 import {
   editorCache,
-  editorMountKey,
   editorValue,
   isPathDirty,
   languageForPath,
@@ -16,15 +15,8 @@ import {
 export function EditorPanelView(props: { path: string }) {
   let editor: EditorRef | undefined;
 
-  keymap.bind("mod+s", () => {
-    if (selectedPath() === props.path) {
-      void saveFile();
-      editor?.focus();
-    }
-  });
-
   const isActive = () => selectedPath() === props.path;
-  const showLoading = () => isActive() && loadingFile();
+  const showLoading = () => isActive() && loadingFile() && !editorCache()[props.path];
   const unsaved = () => isPathDirty(props.path);
 
   return (
@@ -53,10 +45,18 @@ function EditorBody(props: { path: string; editorRef: (ref: EditorRef) => void }
   return (
     <View class="flex-1">
       {() => {
-        if (selectedPath() === props.path) void editorMountKey();
-        const cached = editorCache()[props.path];
-        const value = selectedPath() === props.path ? editorValue() : (cached?.value ?? "");
+        const entry = editorCache()[props.path];
+        void (entry?.mountKey ?? 0);
+        const active = selectedPath() === props.path;
+        const value = active ? editorValue() : (entry?.value ?? "");
         const readOnly = props.path.endsWith(".wasm");
+        if (!entry && !active) {
+          return (
+            <View class="flex-1 items-center justify-center">
+              <Text class="text-xs text-muted-foreground">Not loaded</Text>
+            </View>
+          );
+        }
         return (
           <Editor
             ref={props.editorRef}
@@ -66,7 +66,7 @@ function EditorBody(props: { path: string; editorRef: (ref: EditorRef) => void }
             softWrap={false}
             readOnly={readOnly}
             onChange={({ value: next }) => {
-              if (selectedPath() !== props.path) selectedPath.set(props.path);
+              if (!active) selectedPath.set(props.path);
               onEditorValueChange(props.path, next);
             }}
             accessibilityLabel={props.path}

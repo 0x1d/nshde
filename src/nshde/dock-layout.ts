@@ -90,7 +90,8 @@ function editorTabGroup(center: DockAreaLayout["center"]): TabGroup | null {
   return null;
 }
 
-export function collectCenterPanelIds(layout: DockAreaLayout): string[] {
+export function collectCenterPanelIds(layout: DockAreaLayout | undefined): string[] {
+  if (!layout?.center) return [];
   const ids = new Set<string>();
   const walk = (node: DockAreaLayout["center"]) => {
     if (node.type === "tabs") {
@@ -131,25 +132,36 @@ export function openSettingsTab(layout: DockAreaLayout): DockAreaLayout {
   return addCenterTab(layout, SETTINGS_PANEL);
 }
 
-export function panelRegistry(layout: DockAreaLayout): { id: string; closable: boolean }[] {
+export function panelRegistry(layout: DockAreaLayout | undefined): { id: string; closable: boolean }[] {
   const ids = new Set<string>(["tree", "runtime", "agents"]);
   for (const id of collectCenterPanelIds(layout)) ids.add(id);
   return [...ids].map((id) => ({
     id,
-    closable:
-      id === SETTINGS_PANEL ||
-      id === "runtime" ||
-      pathFromFilePanel(id) !== null,
+    closable: id === SETTINGS_PANEL || id === "runtime" || pathFromFilePanel(id) !== null,
   }));
 }
 
-export function activeCenterPanel(layout: DockAreaLayout): string | null {
+export function panelClosable(id: string): boolean {
+  return id === SETTINGS_PANEL || id === "runtime" || pathFromFilePanel(id) !== null;
+}
+
+export function defaultDockPanels(welcomePath: string): { id: string; closable: boolean }[] {
+  return [
+    { id: "tree", closable: false },
+    { id: "runtime", closable: true },
+    { id: "agents", closable: false },
+    { id: filePanelId(welcomePath), closable: true },
+  ];
+}
+
+export function activeCenterPanel(layout: DockAreaLayout | undefined): string | null {
+  if (!layout?.center) return null;
   const group = editorTabGroup(layout.center);
   if (!group) return null;
   return group.panels[group.activeIndex ?? 0] ?? null;
 }
 
-export function activeFilePath(layout: DockAreaLayout): string | null {
+export function activeFilePath(layout: DockAreaLayout | undefined): string | null {
   const panel = activeCenterPanel(layout);
   if (!panel) return null;
   return pathFromFilePanel(panel);
