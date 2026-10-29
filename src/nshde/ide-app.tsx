@@ -46,9 +46,8 @@ function DockHeader(props: {
   children: JSX.Element;
 }) {
   return (
-    <View class="h-7 w-full flex-row items-center border-b border-line px-1">
+    <View class="h-7 w-full flex-row items-center justify-between border-b border-line px-1">
       <View class="flex-row items-center gap-1">{props.children}</View>
-      <View class="min-h-px flex-1" style={{ flex: 1, flexGrow: 1 }} />
       <TipIconButton label={props.collapsed ? props.expandLabel : props.collapseLabel} onPress={props.onToggle}>
         <If
           when={props.placement === "bottom"}
