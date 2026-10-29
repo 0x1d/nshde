@@ -1,11 +1,11 @@
-import { effect, keymap, Text, View } from "nsh";
+import { keymap, Text, View } from "nsh";
 import { Editor, type EditorRef } from "nsh/base";
 import { IconButton, IconSave } from "./icons";
 import {
-  dirty,
   editorCache,
   editorMountKey,
   editorValue,
+  isPathDirty,
   languageForPath,
   loadingFile,
   onEditorValueChange,
@@ -16,12 +16,6 @@ import {
 export function EditorPanelView(props: { path: string }) {
   let editor: EditorRef | undefined;
 
-  effect(() => {
-    if (selectedPath() === props.path && !editorCache()[props.path]) {
-      /* load handled by openFileInEditor / layout activation */
-    }
-  });
-
   keymap.bind("mod+s", () => {
     if (selectedPath() === props.path) {
       void saveFile();
@@ -31,13 +25,14 @@ export function EditorPanelView(props: { path: string }) {
 
   const isActive = () => selectedPath() === props.path;
   const showLoading = () => isActive() && loadingFile();
+  const unsaved = () => isPathDirty(props.path);
 
   return (
     <View class="flex-1 bg-card">
-      <View class="h-9 flex-row items-center justify-end gap-1 border-b border-line px-2">
+      <View class="h-7 flex-row items-center justify-end gap-0.5 border-b border-line px-1.5">
         <IconButton
-          label="Save file"
-          disabled={!isActive() || props.path.endsWith(".wasm") || (!dirty() && isActive())}
+          label="Save file (⌘S)"
+          disabled={!isActive() || props.path.endsWith(".wasm") || !unsaved()}
           onPress={() => void saveFile()}
         >
           <IconSave />
@@ -60,8 +55,7 @@ function EditorBody(props: { path: string; editorRef: (ref: EditorRef) => void }
       {() => {
         if (selectedPath() === props.path) void editorMountKey();
         const cached = editorCache()[props.path];
-        const value =
-          selectedPath() === props.path ? editorValue() : (cached?.value ?? "");
+        const value = selectedPath() === props.path ? editorValue() : (cached?.value ?? "");
         const readOnly = props.path.endsWith(".wasm");
         return (
           <Editor

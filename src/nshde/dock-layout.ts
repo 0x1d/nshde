@@ -1,11 +1,13 @@
 import type { DockAreaLayout } from "nsh/base";
 
 export const FILE_PREFIX = "file:";
+export const SETTINGS_PANEL = "settings";
 
 const DOCK_TITLES: Record<string, string> = {
   tree: "Object tree",
   runtime: "Runtime",
   agents: "Agents",
+  [SETTINGS_PANEL]: "Settings",
 };
 
 export function filePanelId(path: string): string {
@@ -48,6 +50,32 @@ export function initialIdeLayout(welcomePath: string): DockAreaLayout {
 type TabGroup = Extract<DockAreaLayout["center"], { type: "tabs" }>;
 type SplitNode = Extract<DockAreaLayout["center"], { type: "split" }>;
 
+const DOCK_DEFAULT_SIZE: Record<string, number> = { left: 220, right: 300, bottom: 220 };
+const DOCK_COLLAPSED_SIZE = 44;
+
+export function toggleDockCollapsed(
+  layout: DockAreaLayout,
+  placement: "left" | "right" | "bottom",
+  collapsed: boolean,
+): DockAreaLayout {
+  const region = layout[placement];
+  if (!region) return layout;
+  return {
+    ...layout,
+    [placement]: {
+      ...region,
+      open: true,
+      size: collapsed ? DOCK_COLLAPSED_SIZE : (region.size ?? DOCK_DEFAULT_SIZE[placement]),
+    },
+  };
+}
+
+export function isDockCollapsed(layout: DockAreaLayout, placement: "left" | "right" | "bottom"): boolean {
+  const region = layout[placement];
+  if (!region || region.open === false) return true;
+  return (region.size ?? 0) <= DOCK_COLLAPSED_SIZE + 8;
+}
+
 function editorTabGroup(center: DockAreaLayout["center"]): TabGroup | null {
   if (center.type === "split" && center.axis === "vertical") {
     const first = center.children[0];
@@ -62,13 +90,11 @@ function editorTabGroup(center: DockAreaLayout["center"]): TabGroup | null {
   return null;
 }
 
-export function collectFilePanelIds(layout: DockAreaLayout): string[] {
+export function collectCenterPanelIds(layout: DockAreaLayout): string[] {
   const ids = new Set<string>();
-  const walk = (node: DockAreaLayout["center"] | TabGroup) => {
+  const walk = (node: DockAreaLayout["center"]) => {
     if (node.type === "tabs") {
-      for (const id of node.panels) {
-        if (pathFromFilePanel(id)) ids.add(id);
-      }
+      for (const id of node.panels) ids.add(id);
       return;
     }
     if (node.type === "split") {
@@ -76,26 +102,20 @@ export function collectFilePanelIds(layout: DockAreaLayout): string[] {
     }
   };
   walk(layout.center);
-  for (const side of [layout.left, layout.right, layout.bottom, layout.top]) {
-    if (side?.layout.type === "tabs") {
-      for (const id of side.layout.panels) {
-        if (pathFromFilePanel(id)) ids.add(id);
-      }
-    } else if (side?.layout.type === "split") {
-      walk(side.layout as SplitNode);
-    }
-  }
   return [...ids];
 }
 
-export function addFileTab(layout: DockAreaLayout, path: string): DockAreaLayout {
-  const id = filePanelId(path);
+export function collectFilePanelIds(layout: DockAreaLayout): string[] {
+  return collectCenterPanelIds(layout).filter((id) => pathFromFilePanel(id));
+}
+
+export function addCenterTab(layout: DockAreaLayout, panelId: string): DockAreaLayout {
   const center = layout.center;
   if (center.type !== "split" || center.axis !== "vertical") return layout;
   const editorGroup = center.children[0];
   if (editorGroup.type !== "tabs") return layout;
-  const panels = editorGroup.panels.includes(id) ? editorGroup.panels : [...editorGroup.panels, id];
-  const activeIndex = panels.indexOf(id);
+  const panels = editorGroup.panels.includes(panelId) ? editorGroup.panels : [...editorGroup.panels, panelId];
+  const activeIndex = panels.indexOf(panelId);
   const nextEditor: TabGroup = { ...editorGroup, panels, activeIndex };
   return {
     ...layout,
@@ -103,29 +123,34 @@ export function addFileTab(layout: DockAreaLayout, path: string): DockAreaLayout
   };
 }
 
+export function addFileTab(layout: DockAreaLayout, path: string): DockAreaLayout {
+  return addCenterTab(layout, filePanelId(path));
+}
+
+export function openSettingsTab(layout: DockAreaLayout): DockAreaLayout {
+  return addCenterTab(layout, SETTINGS_PANEL);
+}
+
 export function panelRegistry(layout: DockAreaLayout): { id: string; closable: boolean }[] {
-  const fileIds = collectFilePanelIds(layout);
-  return [
-    { id: "tree", closable: false },
-    { id: "runtime", closable: true },
-    { id: "agents", closable: false },
-    ...fileIds.map((id) => ({ id, closable: true })),
-  ];
+  const ids = new Set<string>(["tree", "runtime", "agents"]);
+  for (const id of collectCenterPanelIds(layout)) ids.add(id);
+  return [...ids].map((id) => ({
+    id,
+    closable:
+      id === SETTINGS_PANEL ||
+      id === "runtime" ||
+      pathFromFilePanel(id) !== null,
+  }));
+}
+
+export function activeCenterPanel(layout: DockAreaLayout): string | null {
+  const group = editorTabGroup(layout.center);
+  if (!group) return null;
+  return group.panels[group.activeIndex ?? 0] ?? null;
 }
 
 export function activeFilePath(layout: DockAreaLayout): string | null {
-  const walk = (node: DockAreaLayout["center"]): string | null => {
-    if (node.type === "tabs") {
-      const active = node.panels[node.activeIndex ?? 0];
-      return pathFromFilePanel(active ?? "");
-    }
-    if (node.type === "split") {
-      for (const child of node.children) {
-        const p = walk(child as DockAreaLayout["center"]);
-        if (p) return p;
-      }
-    }
-    return null;
-  };
-  return walk(layout.center);
+  const panel = activeCenterPanel(layout);
+  if (!panel) return null;
+  return pathFromFilePanel(panel);
 }

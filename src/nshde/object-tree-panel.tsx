@@ -2,7 +2,7 @@ import { Scroll, signal, Text, View } from "nsh";
 import { Button } from "nsh/base";
 import type { TreeNode } from "./api";
 import { IconButton, IconChevron, IconLive, IconPlay } from "./icons";
-import { mountRuntime, openFileInEditor, runtimePath, selectedPath, tree } from "./store";
+import { mountRuntime, openFileInEditor, isPathDirty, runtimePath, selectedPath, tree } from "./store";
 
 function TreeItem(props: { node: TreeNode; depth: number }) {
   const open = signal(props.node.kind === "directory" && props.depth < 1);
@@ -12,6 +12,7 @@ function TreeItem(props: { node: TreeNode; depth: number }) {
     !isDir && (props.node.path.endsWith(".nsh.tsx") || props.node.path.endsWith(".wasm"));
   const isLive = () => runtimePath() === props.node.path;
   const isSelected = () => selectedPath() === props.node.path;
+  const isDirty = () => !isDir && isPathDirty(props.node.path);
 
   return (
     <View>
@@ -26,7 +27,11 @@ function TreeItem(props: { node: TreeNode; depth: number }) {
           >
             <IconChevron open={open()} />
             <View class="size-1.5 rounded-full bg-brand" />
-            <Text class="flex-1 font-mono text-xs text-foreground">{props.node.name}</Text>
+            <Text
+              class={`flex-1 font-mono text-xs ${isDirty() ? "text-warn" : "text-foreground"}`}
+            >
+              {props.node.name}
+            </Text>
           </Button>
         </If>
         <If when={!isDir}>
@@ -36,7 +41,11 @@ function TreeItem(props: { node: TreeNode; depth: number }) {
           >
             <View class="w-3" />
             <View class="size-1.5 rounded-full bg-faint" />
-            <Text class="flex-1 font-mono text-xs text-foreground">{props.node.name}</Text>
+            <Text
+              class={`flex-1 font-mono text-xs ${isDirty() ? "text-warn" : "text-foreground"}`}
+            >
+              {props.node.name}
+            </Text>
           </Button>
         </If>
         <If when={runnable}>

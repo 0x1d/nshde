@@ -56,7 +56,8 @@ await page.getByRole("button", { name: /Mount at runtime|Module is live/i }).fir
 await page.waitForTimeout(2000);
 await shot("04-runtime-stats");
 
-await page.getByText("Implementer", { exact: true }).click();
+await page.getByText("Implementer", { exact: true }).click().catch(() => {});
+await page.keyboard.press("Escape");
 await shot("05-agent-implementer");
 
 await page.getByPlaceholder("Describe the module to develop…").fill("Build a todo list module");
@@ -69,7 +70,7 @@ await page.waitForFunction(
 await assertNoOverlayError();
 await shot("06-agent-generated-todo");
 
-await page.getByRole("button", { name: "Storage settings" }).click();
+await page.getByRole("button", { name: "Settings" }).click();
 await page.getByText("File storage backend").waitFor({ timeout: 5000 });
 await shot("07-storage-settings");
 
