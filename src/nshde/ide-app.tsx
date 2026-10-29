@@ -6,7 +6,6 @@ import logo from "../../assets/logo.svg";
 import { AgentPanelView } from "./agent-panel";
 import {
   isDockCollapsed,
-  panelRegistry,
   pathFromFilePanel,
   SETTINGS_PANEL,
   tabTitle,
@@ -30,6 +29,7 @@ import {
   bootError,
   bootIdeData,
   dockLayout,
+  dockPanels,
   isFilePanel,
   isPathDirty,
   openSettingsInEditor,
@@ -106,10 +106,11 @@ export function IdeApp() {
               class="flex-1"
               layout={layout()}
               onLayoutChange={({ layout: next }) => {
+                if (!next?.center) return;
                 layout.set(next);
                 syncActiveEditorFromLayout(next);
               }}
-              panels={panelRegistry(layout())}
+              panels={dockPanels()}
               groupClass="flex-1 bg-inset"
               tabBarClass="flex-row items-center gap-1 border-b border-line"
               tabClass="group"
