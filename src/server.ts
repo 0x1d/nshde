@@ -25,6 +25,19 @@ function withCors(response: Response): Response {
   return response;
 }
 
+async function withCorsAsync(fn: (req: Request) => Response | Promise<Response>, req: Request) {
+  try {
+    return withCors(await fn(req));
+  } catch (e) {
+    return withCors(
+      Response.json(
+        { error: e instanceof Error ? e.message : "request failed" },
+        { status: 500, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+  }
+}
+
 const server = Bun.serve({
   port,
   routes: {
@@ -37,7 +50,7 @@ const server = Bun.serve({
     "/favicon.ico": Bun.file("public/favicon.ico"),
     "/api/agents": {
       GET: () => withCors(handleAgentsGet()),
-      POST: (req) => withCors(handleAgentsPost(req)),
+      POST: (req) => withCorsAsync(handleAgentsPost, req),
       OPTIONS: () => new Response(null, { headers: corsHeaders() }),
     },
     "/api/config": {
@@ -45,9 +58,9 @@ const server = Bun.serve({
       OPTIONS: () => new Response(null, { headers: corsHeaders() }),
     },
     "/api/storage": {
-      GET: (req) => withCors(handleStorageGet(req)),
-      POST: (req) => withCors(handleStoragePost(req)),
-      DELETE: (req) => withCors(handleStorageDelete(req)),
+      GET: (req) => withCorsAsync(handleStorageGet, req),
+      POST: (req) => withCorsAsync(handleStoragePost, req),
+      DELETE: (req) => withCorsAsync(handleStorageDelete, req),
       OPTIONS: () => new Response(null, { headers: corsHeaders() }),
     },
   },

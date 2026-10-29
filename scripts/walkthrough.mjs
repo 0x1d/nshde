@@ -9,30 +9,46 @@ const UI_URL = process.env.NSHDE_UI_URL ?? "http://127.0.0.1:8791/";
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
 
+page.on("console", (msg) => {
+  if (msg.type() === "error") console.error("browser:", msg.text());
+});
+
 async function shot(name) {
-  await page.waitForTimeout(600);
+  await page.waitForTimeout(800);
   await page.screenshot({ path: `${outDir}/${name}.png`, fullPage: false });
 }
 
-await page.goto(UI_URL, { waitUntil: "networkidle" });
-await page.waitForTimeout(2000);
+async function waitForShell() {
+  await page.goto(UI_URL, { waitUntil: "networkidle" });
+  await page.getByText("nshde", { exact: true }).first().waitFor({ timeout: 30000 });
+  await page.waitForFunction(
+    () => !document.body.innerText.includes("Error:") && !document.body.innerText.includes("Loading file…"),
+    { timeout: 30000 },
+  );
+  await page.getByText("Welcome to nshde").waitFor({ timeout: 30000 }).catch(() => {});
+}
+
+await waitForShell();
 await shot("01-nsh-ide-home");
 
-await page.getByRole("button", { name: /stats-card/i }).first().click().catch(() => {});
+await page.getByText("stats-card.nsh.tsx").click();
+await page.waitForFunction(() => !document.body.innerText.includes("Loading file…"), { timeout: 15000 });
 await shot("03-stats-card-editor");
 
-await page.getByRole("button", { name: /Mount at runtime|live/i }).first().click().catch(() => {});
+await page.getByRole("button", { name: /Mount at runtime|^run$/i }).first().click();
+await page.waitForTimeout(2000);
 await shot("04-runtime-stats");
 
-await page.getByRole("button", { name: "Implementer" }).click().catch(() => {});
+await page.getByText("Implementer", { exact: true }).click();
 await shot("05-agent-implementer");
 
-await page.getByRole("textbox", { name: "Agent prompt" }).fill("Build a todo list module").catch(() => {});
-await page.getByRole("button", { name: "Develop module" }).click().catch(() => {});
-await page.waitForTimeout(2500);
+await page.getByPlaceholder("Describe the module to develop…").fill("Build a todo list module");
+await page.getByRole("button", { name: "Develop module" }).click();
+await page.waitForTimeout(3000);
 await shot("06-agent-generated-todo");
 
-await page.getByRole("button", { name: "Storage settings" }).click().catch(() => {});
+await page.getByRole("button", { name: "Storage settings" }).click();
+await page.getByText("File storage backend").waitFor({ timeout: 5000 });
 await shot("07-storage-settings");
 
 await browser.close();

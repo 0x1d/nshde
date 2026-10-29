@@ -1,21 +1,21 @@
-import { batch, effect, signal, Text, untracked, View } from "nsh";
+import { signal, Text, untracked, View } from "nsh";
 import { keymap } from "nsh";
 import { Button, DockArea, type DockAreaLayout, Sheet } from "nsh/base";
 import { windowSize } from "nsh";
 import type { StorageBackend } from "../lib/storage/types";
+import { AgentPanelView } from "./agent-panel";
+import { EditorPanelView } from "./editor-panel";
+import { ObjectTreePanelView } from "./object-tree-panel";
+import { RuntimePanelView } from "./runtime-panel";
 import {
-  loadConfig,
-  loadTree,
-  previewUrl,
-  readFile,
-  setBackend,
-  writeFile,
-  type TreeNode,
-} from "./api";
-import { AgentPanel } from "./agent-panel";
-import { EditorPanel } from "./editor-panel";
-import { ObjectTreePanel } from "./object-tree-panel";
-import { RuntimePanel } from "./runtime-panel";
+  backend,
+  bootError,
+  bootIdeData,
+  changeBackend,
+  dirty,
+  saveFile,
+  settingsOpen,
+} from "./store";
 
 const PANEL_TITLES: Record<string, string> = {
   tree: "Object tree",
@@ -23,13 +23,6 @@ const PANEL_TITLES: Record<string, string> = {
   runtime: "Runtime preview",
   agents: "Agents",
 };
-
-function languageForPath(path: string | null): "typescript" | "json" | "plaintext" {
-  if (!path) return "typescript";
-  if (path.endsWith(".json")) return "json";
-  if (path.endsWith(".wasm")) return "plaintext";
-  return "typescript";
-}
 
 function initialLayout(): DockAreaLayout {
   return {
@@ -48,92 +41,13 @@ function initialLayout(): DockAreaLayout {
 }
 
 export function IdeApp() {
+  bootIdeData();
   const layout = signal<DockAreaLayout>(initialLayout());
-  const tree = signal<TreeNode[]>([]);
-  const selectedPath = signal<string | null>("components/welcome.nsh.tsx");
-  const editorValue = signal("");
-  const dirty = signal(false);
-  const runtimePath = signal<string | null>("components/welcome.nsh.tsx");
-  const runtimeRevision = signal(0);
-  const backend = signal<StorageBackend>("fs");
-  const settingsOpen = signal(false);
-  const loadingFile = signal(false);
-  const editorMountKey = signal(0);
-
   const wide = () => untracked(windowSize).width >= 900;
-  const previewSrc = signal("http://127.0.0.1:43123/preview/blank");
-
-  effect(() => {
-    const path = runtimePath();
-    const rev = runtimeRevision();
-    void previewUrl(path, rev).then((url) => previewSrc.set(url));
-  });
-
-  async function refreshTree() {
-    const data = await loadTree();
-    tree.set(data.tree ?? []);
-    backend.set(data.backend);
-  }
-
-  async function loadFile(path: string) {
-    loadingFile.set(true);
-    try {
-      const content = await readFile(path);
-      batch(() => {
-        editorValue.set(content);
-        selectedPath.set(path);
-        dirty.set(false);
-        editorMountKey.update((k) => k + 1);
-      });
-    } finally {
-      loadingFile.set(false);
-    }
-  }
-
-  effect(() => {
-    void loadConfig().then((c) => backend.set(c.backend));
-    void refreshTree();
-  });
-
-  effect(() => {
-    const path = selectedPath();
-    if (path) void loadFile(path);
-  });
-
-  async function saveFile() {
-    const path = selectedPath();
-    if (!path || path.endsWith(".wasm")) return;
-    await writeFile(path, editorValue());
-    dirty.set(false);
-    if (runtimePath() === path) {
-      runtimeRevision.update((r) => r + 1);
-    }
-    await refreshTree();
-  }
 
   keymap.bind("mod+s", () => {
     if (dirty()) void saveFile();
   });
-
-  function handleModuleGenerated(path: string, source: string) {
-    void refreshTree();
-    batch(() => {
-      selectedPath.set(path);
-      editorValue.set(source);
-      dirty.set(false);
-      runtimePath.set(path);
-      runtimeRevision.update((r) => r + 1);
-    });
-  }
-
-  async function changeBackend(next: StorageBackend) {
-    await setBackend(next);
-    backend.set(next);
-    settingsOpen.set(false);
-    await refreshTree();
-    const path = selectedPath();
-    if (path) await loadFile(path);
-  }
 
   const handleThumb =
     "rounded-full bg-border opacity-0 transition-opacity hover:opacity-100 data-[dragging=true]:opacity-100";
@@ -166,6 +80,14 @@ export function IdeApp() {
         </View>
       </View>
 
+      <If when={bootError()}>
+        {(err) => (
+          <View class="border-b border-destructive/40 bg-destructive/10 px-4 py-2">
+            <Text class="text-center text-xs text-destructive">{err()}</Text>
+          </View>
+        )}
+      </If>
+
       <If when={dirty()}>
         <View class="border-b border-warn/30 bg-warn/10 px-4 py-1">
           <Text class="text-center text-xs text-warn">Unsaved changes — press Save in the editor or ⌘/Ctrl+S</Text>
@@ -195,57 +117,25 @@ export function IdeApp() {
           renderTab={(tab) => (
             <View class="h-8 flex-row items-center gap-2 px-3">
               <Text
-                style={{ numberOfLines: 1 }}
-                class={`text-xs font-medium ${tab.active ? "text-foreground" : "text-muted-foreground"}`}
+                class={`truncate text-xs font-medium ${tab.active ? "text-foreground" : "text-muted-foreground"}`}
               >
                 {PANEL_TITLES[tab.panel] ?? tab.panel}
-                {tab.panel === "editor" && selectedPath()
-                  ? ` · ${selectedPath()!.split("/").pop()}`
-                  : ""}
               </Text>
               <If when={tab.active}>
-                <View
-                  style={{ pointerEvents: "none" }}
-                  class="absolute bottom-0 left-3 right-3 h-0.5 rounded-full bg-primary"
-                />
+                <View class="absolute bottom-0 left-3 right-3 h-0.5 rounded-full bg-primary" />
               </If>
             </View>
           )}
           renderPanel={(panel) => {
             switch (panel.id) {
               case "tree":
-                return (
-                  <ObjectTreePanel
-                    tree={tree()}
-                    selectedPath={selectedPath()}
-                    runtimePath={runtimePath()}
-                    onSelect={(p) => void loadFile(p)}
-                    onRefresh={() => void refreshTree()}
-                    onMountRuntime={(p) => {
-                      runtimePath.set(p);
-                      runtimeRevision.update((r) => r + 1);
-                    }}
-                  />
-                );
+                return <ObjectTreePanelView />;
               case "editor":
-                return (
-                  <EditorPanel
-                    path={selectedPath()}
-                    value={editorValue()}
-                    loading={loadingFile()}
-                    mountKey={editorMountKey()}
-                    language={languageForPath(selectedPath())}
-                    onChange={(v) => {
-                      editorValue.set(v);
-                      dirty.set(true);
-                    }}
-                    onSave={() => void saveFile()}
-                  />
-                );
+                return <EditorPanelView />;
               case "runtime":
-                return <RuntimePanel url={previewSrc()} path={runtimePath()} />;
+                return <RuntimePanelView />;
               case "agents":
-                return <AgentPanel onModuleGenerated={handleModuleGenerated} />;
+                return <AgentPanelView />;
               default:
                 return (
                   <View class="flex-1 items-center justify-center">

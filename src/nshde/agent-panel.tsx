@@ -1,13 +1,10 @@
-import { batch, computed, effect, platform, Scroll, signal, Text, View } from "nsh";
+import { batch, computed, effect, Scroll, signal, Text, View } from "nsh";
 import { Button, Input, Tab, Tabs, TextView } from "nsh/base";
 import type { AgentDefinition, AgentId, AgentMessage } from "../lib/agents";
 import { generateModule, listAgents } from "./api";
+import { handleModuleGenerated } from "./store";
 
-interface AgentPanelProps {
-  onModuleGenerated: (path: string, source: string) => void;
-}
-
-export function AgentPanel({ onModuleGenerated }: AgentPanelProps) {
+export function AgentPanelView() {
   const agents = signal<AgentDefinition[]>([]);
   const activeAgent = signal<AgentId>("implementer");
   const prompt = signal("");
@@ -15,7 +12,9 @@ export function AgentPanel({ onModuleGenerated }: AgentPanelProps) {
   const loading = signal(false);
 
   effect(() => {
-    void listAgents().then((list) => agents.set(list));
+    void listAgents()
+      .then((list) => agents.set(list))
+      .catch(() => agents.set([]));
   });
 
   const activeMeta = computed(() => agents().find((a) => a.id === activeAgent()));
@@ -40,7 +39,7 @@ export function AgentPanel({ onModuleGenerated }: AgentPanelProps) {
       const data = await generateModule(text, activeAgent());
       messages.set([...messages(), ...data.messages]);
       if (data.generatedPath && data.source) {
-        onModuleGenerated(data.generatedPath, data.source);
+        handleModuleGenerated(data.generatedPath, data.source);
       }
     } finally {
       loading.set(false);
@@ -67,9 +66,7 @@ export function AgentPanel({ onModuleGenerated }: AgentPanelProps) {
           </Tabs>
         </View>
         <If when={activeMeta()}>
-          {(meta) => (
-            <Text class="mt-2 text-[11px] leading-snug text-muted-foreground">{meta().role}</Text>
-          )}
+          {(meta) => <Text class="mt-2 text-[11px] leading-snug text-muted-foreground">{meta().role}</Text>}
         </If>
       </View>
 
@@ -81,11 +78,16 @@ export function AgentPanel({ onModuleGenerated }: AgentPanelProps) {
         </If>
         <Each of={messages()}>
           {(msg) => (
-            <View class={`rounded-lg px-3 py-2 ${msg().role === "user" ? "ml-4 bg-brand/10" : "mr-2 bg-muted"}`}>
+            <View
+              class={`rounded-lg px-3 py-2 ${msg().role === "user" ? "ml-4 bg-brand/10" : "mr-2 bg-muted"}`}
+            >
               <Text class="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground">
                 {msg().role === "user" ? "You" : msg().agentId}
               </Text>
-              <If when={msg().role === "assistant"} else={<Text class="text-sm text-foreground">{msg().content}</Text>}>
+              <If
+                when={msg().role === "assistant"}
+                else={<Text class="text-sm text-foreground">{msg().content}</Text>}
+              >
                 <TextView markdown={msg().content} class="text-sm text-foreground" />
               </If>
             </View>
@@ -104,7 +106,7 @@ export function AgentPanel({ onModuleGenerated }: AgentPanelProps) {
           value={prompt()}
           onChange={({ value }) => prompt.set(value)}
           multiline
-          submitBehavior={platform.desktop ? "submit" : "newline"}
+          submitBehavior="submit"
           onSubmit={() => void submit()}
           placeholder="Describe the module to develop…"
           accessibilityLabel="Agent prompt"
