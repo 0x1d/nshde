@@ -1,35 +1,61 @@
 import { Image, Text, untracked, View } from "nsh";
 import { keymap } from "nsh";
 import { platform, windowSize } from "nsh";
-import { Button, DockArea, type DockAreaRef, Sheet } from "nsh/base";
-import type { StorageBackend } from "../lib/storage/types";
+import { Button, DockArea, type DockAreaRef, Tooltip } from "nsh/base";
 import logo from "../../assets/logo.svg";
 import { AgentPanelView } from "./agent-panel";
 import {
-  dockRegionTitle,
+  isDockCollapsed,
   panelRegistry,
   pathFromFilePanel,
+  SETTINGS_PANEL,
   tabTitle,
+  toggleDockCollapsed,
 } from "./dock-layout";
 import { EditorPanelView } from "./editor-panel";
-import { IconClose, IconPanelHide } from "./icons";
+import {
+  IconAgents,
+  IconClose,
+  IconCollapse,
+  IconExpand,
+  IconObjectTree,
+  IconRuntime,
+  TipTextButton,
+} from "./icons";
 import { ObjectTreePanelView } from "./object-tree-panel";
 import { RuntimePanelView } from "./runtime-panel";
+import { SettingsPanelView } from "./settings-panel";
 import {
   backend,
   bootError,
   bootIdeData,
-  changeBackend,
-  dirty,
   dockLayout,
   isFilePanel,
+  isPathDirty,
+  openSettingsInEditor,
   saveFile,
-  settingsOpen,
   syncActiveEditorFromLayout,
 } from "./store";
 
 const handleThumb =
   "rounded-full bg-border opacity-0 transition-opacity hover:opacity-100 data-[dragging=true]:opacity-100";
+
+function runtimeStripCollapsed(layout: ReturnType<typeof dockLayout>): boolean {
+  const center = layout().center;
+  if (center.type !== "split" || center.axis !== "vertical") return false;
+  const h = center.sizes?.[1];
+  return h != null && h <= 40;
+}
+
+function toggleRuntimeStrip(collapsed: boolean) {
+  const layout = dockLayout();
+  const center = layout.center;
+  if (center.type !== "split" || center.axis !== "vertical") return;
+  dockLayout.set({
+    ...layout,
+    center: { ...center, sizes: [null, collapsed ? 36 : 220] },
+  });
+}
 
 export function IdeApp() {
   bootIdeData();
@@ -39,14 +65,17 @@ export function IdeApp() {
   let area!: DockAreaRef;
 
   keymap.bind("mod+s", () => {
-    if (dirty()) void saveFile();
+    void saveFile();
   });
+
+  const collapseLeft = () => layout.set(toggleDockCollapsed(layout(), "left", !isDockCollapsed(layout(), "left")));
+  const collapseRight = () => layout.set(toggleDockCollapsed(layout(), "right", !isDockCollapsed(layout(), "right")));
 
   return (
     <View class="flex-1 bg-background">
-      <View class="relative h-11 flex-row items-center border-b border-line px-3">
-        <View class="pointer-events-none absolute inset-0 flex-row items-center justify-center gap-2">
-          <Image src={logo} class="size-7" accessibilityLabel="nshde logo" />
+      <View class="h-10 flex-row items-center border-b border-line px-3">
+        <View class="flex-row items-center gap-2">
+          <Image src={logo} class="size-6" accessibilityLabel="nshde logo" />
           <Text class="text-sm font-semibold tracking-tight text-foreground">nshde</Text>
         </View>
         <View class="ml-auto flex-row items-center gap-2">
@@ -55,13 +84,9 @@ export function IdeApp() {
               Storage: <Text class="text-foreground">{backend()}</Text>
             </Text>
           </If>
-          <Button
-            onPress={() => settingsOpen.set(true)}
-            accessibilityLabel="Storage settings"
-            class="size-8 items-center justify-center rounded-md hover:bg-hover active:opacity-70"
-          >
+          <TipTextButton label="Settings" onPress={() => openSettingsInEditor()}>
             <Text class="text-sm text-muted-foreground">⚙</Text>
-          </Button>
+          </TipTextButton>
         </View>
       </View>
 
@@ -71,12 +96,6 @@ export function IdeApp() {
             <Text class="text-center text-xs text-destructive">{err()}</Text>
           </View>
         )}
-      </If>
-
-      <If when={dirty()}>
-        <View class="border-b border-warn/30 bg-warn/10 px-4 py-1">
-          <Text class="text-center text-xs text-warn">Unsaved changes — Save icon in editor or ⌘/Ctrl+S</Text>
-        </View>
       </If>
 
       <View class="flex-1 p-3">
@@ -92,7 +111,7 @@ export function IdeApp() {
               }}
               panels={panelRegistry(layout())}
               groupClass="flex-1 bg-inset"
-              tabBarClass="flex-row gap-1 border-b border-line"
+              tabBarClass="flex-row items-center gap-1 border-b border-line"
               tabClass="group"
               contentClass="flex-1"
               handleAccessibilityLabel="Resize panel"
@@ -103,55 +122,130 @@ export function IdeApp() {
               drawerClass="border-r border-border bg-card"
               sheetClass="rounded-t-2xl border-t border-border bg-card"
               backdropClass="bg-black/40"
-              renderTab={(tab) => (
-                <View testID={`tab-${tab.panel}`} class="h-9 flex-row items-center gap-1 px-3">
-                  <Text
-                    style={{ numberOfLines: 1 }}
-                    class={`max-w-44 text-[13px] font-medium ${tab.active ? "text-foreground" : "text-muted-foreground group-hover:text-foreground"}`}
-                  >
-                    {tabTitle(tab.panel)}
-                  </Text>
-                  <If when={tab.closable && (pointer || tab.active)}>
-                    <Button
-                      onPress={() => area.closePanel(tab.panel)}
-                      accessibilityLabel={`Close ${tabTitle(tab.panel)}`}
-                      class={
-                        pointer
-                          ? "absolute right-1 top-2 size-5 items-center justify-center rounded-md bg-inset opacity-0 transition-opacity group-hover:opacity-100 hover:bg-raised"
-                          : "-mr-1.5 size-5 items-center justify-center rounded-md active:opacity-70"
-                      }
-                    >
-                      <IconClose />
-                    </Button>
-                  </If>
-                  <If when={tab.active}>
-                    <View
-                      style={{ pointerEvents: "none" }}
-                      class="absolute bottom-0 left-3 right-3 h-0.5 rounded-full bg-brand"
-                    />
-                  </If>
-                </View>
-              )}
-              renderDock={(dock) => (
-                <View class="h-7 flex-row items-center justify-end border-b border-line px-1">
-                  <Button
-                    onPress={() => area.toggleDock(dock.placement)}
-                    accessibilityLabel={`Hide ${dockRegionTitle(dock.placement)}`}
-                    class="size-7 items-center justify-center rounded-md hover:bg-hover active:opacity-70"
-                  >
-                    <IconPanelHide />
-                  </Button>
-                </View>
-              )}
+              renderTab={(tab) => {
+                const path = pathFromFilePanel(tab.panel);
+                const unsaved = path ? isPathDirty(path) : false;
+                const leftCollapsed = isDockCollapsed(layout(), "left");
+                const rightCollapsed = isDockCollapsed(layout(), "right");
+                const runtimeCollapsed = runtimeStripCollapsed(layout);
+
+                return (
+                  <View class="h-7 min-w-0 flex-1 flex-row items-center gap-1 px-2">
+                    <If when={tab.panel === "tree"}>
+                      <IconObjectTree />
+                    </If>
+                    <If when={tab.panel === "agents"}>
+                      <IconAgents />
+                    </If>
+                    <If when={tab.panel === "runtime"}>
+                      <IconRuntime />
+                    </If>
+                    <If when={tab.panel === SETTINGS_PANEL}>
+                      <Text class="text-[13px] font-medium text-foreground">Settings</Text>
+                    </If>
+                    <If when={path}>
+                      <Text
+                        style={{ numberOfLines: 1 }}
+                        class={`max-w-40 text-[13px] font-medium ${unsaved ? "text-warn" : tab.active ? "text-foreground" : "text-muted-foreground group-hover:text-foreground"}`}
+                      >
+                        {tabTitle(tab.panel)}
+                      </Text>
+                    </If>
+                    <If when={tab.closable && (pointer || tab.active) && path}>
+                      <Button
+                        onPress={() => area.closePanel(tab.panel)}
+                        accessibilityLabel={`Close ${tabTitle(tab.panel)}`}
+                        class="-mr-1 size-5 items-center justify-center rounded-md active:opacity-70"
+                      >
+                        <IconClose />
+                      </Button>
+                    </If>
+                    <View class="min-w-0 flex-1" />
+                    <If when={tab.panel === "tree" && tab.active}>
+                      <View tooltip={<TooltipTip label={leftCollapsed ? "Expand object tree" : "Collapse object tree"} />}>
+                        <Button
+                          onPress={leftCollapsed ? collapseLeft : collapseLeft}
+                          accessibilityLabel={leftCollapsed ? "Expand object tree" : "Collapse object tree"}
+                          class="size-6 items-center justify-center rounded-md hover:bg-hover active:opacity-70"
+                        >
+                          {leftCollapsed ? <IconExpand /> : <IconCollapse />}
+                        </Button>
+                      </View>
+                    </If>
+                    <If when={tab.panel === "agents" && tab.active}>
+                      <View tooltip={<TooltipTip label={rightCollapsed ? "Expand agents" : "Collapse agents"} />}>
+                        <Button
+                          onPress={collapseRight}
+                          accessibilityLabel={rightCollapsed ? "Expand agents" : "Collapse agents"}
+                          class="size-6 items-center justify-center rounded-md hover:bg-hover active:opacity-70"
+                        >
+                          {rightCollapsed ? <IconExpand /> : <IconCollapse />}
+                        </Button>
+                      </View>
+                    </If>
+                    <If when={tab.panel === "runtime" && tab.active}>
+                      <View tooltip={<TooltipTip label={runtimeCollapsed ? "Expand runtime" : "Collapse runtime"} />}>
+                        <Button
+                          onPress={() => toggleRuntimeStrip(!runtimeCollapsed)}
+                          accessibilityLabel={runtimeCollapsed ? "Expand runtime" : "Collapse runtime"}
+                          class="size-6 items-center justify-center rounded-md hover:bg-hover active:opacity-70"
+                        >
+                          {runtimeCollapsed ? <IconExpand /> : <IconCollapse />}
+                        </Button>
+                      </View>
+                    </If>
+                    <If when={tab.active}>
+                      <View
+                        style={{ pointerEvents: "none" }}
+                        class={`absolute bottom-0 left-2 right-2 h-0.5 rounded-full ${unsaved ? "bg-warn" : "bg-brand"}`}
+                      />
+                    </If>
+                  </View>
+                );
+              }}
               renderDragPreview={(tab) => (
                 <View class="rounded-lg border border-border bg-raised px-3 py-1.5">
                   <Text class="text-[13px] font-medium text-foreground">{tabTitle(tab.panel)}</Text>
                 </View>
               )}
               renderPanel={(panel) => {
-                if (panel.id === "tree") return <ObjectTreePanelView />;
-                if (panel.id === "runtime") return <RuntimePanelView />;
-                if (panel.id === "agents") return <AgentPanelView />;
+                if (panel.id === "tree") {
+                  if (isDockCollapsed(layout(), "left")) {
+                    return (
+                      <View class="flex-1 items-center gap-2 py-2">
+                        <TipTextButton label="Object tree" onPress={collapseLeft}>
+                          <IconObjectTree />
+                        </TipTextButton>
+                      </View>
+                    );
+                  }
+                  return <ObjectTreePanelView />;
+                }
+                if (panel.id === "agents") {
+                  if (isDockCollapsed(layout(), "right")) {
+                    return (
+                      <View class="flex-1 items-center gap-2 py-2">
+                        <TipTextButton label="Agents" onPress={collapseRight}>
+                          <IconAgents />
+                        </TipTextButton>
+                      </View>
+                    );
+                  }
+                  return <AgentPanelView />;
+                }
+                if (panel.id === "runtime") {
+                  if (runtimeStripCollapsed(layout)) {
+                    return (
+                      <View class="flex-1 items-center justify-center">
+                        <TipTextButton label="Runtime preview" onPress={() => toggleRuntimeStrip(false)}>
+                          <IconRuntime />
+                        </TipTextButton>
+                      </View>
+                    );
+                  }
+                  return <RuntimePanelView />;
+                }
+                if (panel.id === SETTINGS_PANEL) return <SettingsPanelView />;
                 const path = pathFromFilePanel(panel.id);
                 if (path) return <EditorPanelView path={path} />;
                 if (isFilePanel(panel.id)) return null;
@@ -171,26 +265,16 @@ export function IdeApp() {
           </View>
         </View>
       </View>
-
-      <Sheet open={settingsOpen()} onOpenChange={(open) => settingsOpen.set(open)}>
-        <View class="gap-3 p-4">
-          <Text class="text-base font-semibold text-foreground">File storage backend</Text>
-          <Text class="text-sm text-muted-foreground">Where module files are persisted on the server.</Text>
-          <View class="flex-row flex-wrap gap-2 pt-2">
-            <Each of={["fs", "memory", "s3"] as StorageBackend[]}>
-              {(b) => (
-                <Button
-                  onPress={() => void changeBackend(b())}
-                  selected={backend() === b()}
-                  class="rounded-md px-3 py-2 text-sm font-medium selected:bg-primary selected:text-primary-foreground hover:bg-accent"
-                >
-                  <Text class={backend() === b() ? "text-primary-foreground" : "text-foreground"}>{b()}</Text>
-                </Button>
-              )}
-            </Each>
-          </View>
-        </View>
-      </Sheet>
     </View>
+  );
+}
+
+function TooltipTip(props: { label: string }) {
+  return (
+    <Tooltip delay={400}>
+      <View class="rounded-md border border-border bg-popover px-2 py-1">
+        <Text class="text-[11px] text-popover-foreground">{props.label}</Text>
+      </View>
+    </Tooltip>
   );
 }

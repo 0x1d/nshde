@@ -15,6 +15,7 @@ import {
   addFileTab,
   filePanelId,
   initialIdeLayout,
+  openSettingsTab,
   pathFromFilePanel,
 } from "./dock-layout";
 
@@ -30,7 +31,6 @@ export const editorMountKey = signal(0);
 export const runtimePath = signal<string | null>(WELCOME);
 export const runtimeRevision = signal(0);
 export const backend = signal<StorageBackend>("fs");
-export const settingsOpen = signal(false);
 export const previewSrc = signal("http://127.0.0.1:43123/preview/blank");
 export const bootError = signal<string | null>(null);
 
@@ -93,6 +93,15 @@ export function openFileInEditor(path: string) {
   void loadFile(path);
 }
 
+export function openSettingsInEditor() {
+  dockLayout.set(openSettingsTab(dockLayout()));
+}
+
+export function isPathDirty(path: string): boolean {
+  if (selectedPath() === path) return dirty();
+  return editorCache()[path]?.dirty ?? false;
+}
+
 export function syncActiveEditorFromLayout(layout: DockAreaLayout) {
   const path = activeFilePath(layout);
   if (!path || path === selectedPath()) return;
@@ -131,7 +140,6 @@ export function handleModuleGenerated(path: string, source: string) {
 export async function changeBackend(next: StorageBackend) {
   await setBackend(next);
   backend.set(next);
-  settingsOpen.set(false);
   await refreshTree();
   const path = selectedPath();
   if (path) await loadFile(path);

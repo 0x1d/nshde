@@ -1,5 +1,5 @@
 import { batch, computed, effect, Scroll, signal, Text, View } from "nsh";
-import { Button, Input, Tab, Tabs, TextView } from "nsh/base";
+import { Button, Input, Menu, MenuItem, TextView } from "nsh/base";
 import type { AgentDefinition, AgentId, AgentMessage } from "../lib/agents";
 import { generateModule, listAgents } from "./api";
 import { handleModuleGenerated } from "./store";
@@ -7,6 +7,7 @@ import { handleModuleGenerated } from "./store";
 export function AgentPanelView() {
   const agents = signal<AgentDefinition[]>([]);
   const activeAgent = signal<AgentId>("implementer");
+  const menuOpen = signal(false);
   const prompt = signal("");
   const messages = signal<AgentMessage[]>([]);
   const loading = signal(false);
@@ -83,21 +84,38 @@ export function AgentPanelView() {
         <If when={activeMeta()}>
           {(meta) => <Text class="text-[11px] leading-snug text-muted-foreground">{meta().role}</Text>}
         </If>
-        <View class="flex-row flex-wrap gap-1">
-          <Tabs class="flex-row flex-wrap gap-1">
-            <Each of={agents()}>
-              {(agent) => (
-                <Tab
-                  selected={activeAgent() === agent().id}
-                  onPress={() => activeAgent.set(agent().id)}
-                  class="rounded-full px-2.5 py-1 text-xs font-medium selected:bg-brand selected:text-[#0c0c0e] text-muted-foreground hover:bg-hover"
+        <Menu
+          offset={4}
+          margin={8}
+          align="start"
+          popupClass="min-w-[180px] rounded-lg border border-border bg-popover p-1 shadow-lg"
+          backdropClass="bg-black/40"
+          onOpenChange={({ open }) => menuOpen.set(open)}
+          trigger={
+            <View
+              accessibilityLabel="Agent role"
+              class={`h-8 flex-row items-center justify-between rounded-md border border-border bg-field px-2.5 ${menuOpen() ? "border-brand" : ""}`}
+            >
+              <Text class="text-xs font-medium text-foreground">{activeMeta()?.name ?? "Agent"}</Text>
+              <Text class="text-[10px] text-muted-foreground">{menuOpen() ? "▴" : "▾"}</Text>
+            </View>
+          }
+        >
+          <Each of={agents()}>
+            {(agent) => (
+              <MenuItem
+                onPress={() => activeAgent.set(agent().id)}
+                class="rounded-md px-2 py-1.5 hover:bg-hover active:bg-accent"
+              >
+                <Text
+                  class={`text-sm ${activeAgent() === agent().id ? "font-semibold text-foreground" : "text-foreground"}`}
                 >
-                  <Text class="text-xs font-medium">{agent().name}</Text>
-                </Tab>
-              )}
-            </Each>
-          </Tabs>
-        </View>
+                  {agent().name}
+                </Text>
+              </MenuItem>
+            )}
+          </Each>
+        </Menu>
         <Input
           value={prompt()}
           onChange={(value) => prompt.set(typeof value === "string" ? value : "")}
@@ -106,14 +124,14 @@ export function AgentPanelView() {
           onSubmit={() => void submit()}
           placeholder="Describe the module to develop…"
           accessibilityLabel="Agent prompt"
-          class="min-h-[72px] rounded-lg border border-border bg-field px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground"
+          class="min-h-[64px] rounded-lg border border-border bg-field px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground"
         />
         <Button
           onPress={() => void submit()}
           disabled={loading() || !(prompt() ?? "").trim()}
-          class="h-10 items-center justify-center rounded-lg bg-primary disabled:opacity-50 active:opacity-90"
+          class="h-8 items-center justify-center rounded-md bg-primary px-3 disabled:opacity-50 active:opacity-90"
         >
-          <Text class="text-sm font-medium text-primary-foreground">Develop module</Text>
+          <Text class="text-xs font-medium text-primary-foreground">Develop module</Text>
         </Button>
       </View>
     </View>
