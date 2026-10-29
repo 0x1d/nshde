@@ -2,7 +2,7 @@ import type { JSX } from "nsh";
 import { Image, Text, untracked, View } from "nsh";
 import { keymap } from "nsh";
 import { platform, windowSize } from "nsh";
-import { Button, DockArea, type DockAreaRef } from "nsh/base";
+import { Button, DockArea, type DockAreaLayout, type DockAreaRef } from "nsh/base";
 import logo from "../../assets/logo.svg";
 import { AgentPanelView } from "./agent-panel";
 import { isDockCollapsed, pathFromFilePanel, SETTINGS_PANEL, tabTitle, toggleDockCollapsed } from "./dock-layout";
@@ -35,37 +35,40 @@ import {
 const handleThumb =
   "rounded-full bg-border opacity-0 transition-opacity hover:opacity-100 data-[dragging=true]:opacity-100";
 
-function DockTabRow(props: {
-  active: boolean;
+const DOCK_CHROME = new Set(["tree", "agents", "runtime"]);
+
+function DockHeader(props: {
+  placement: "left" | "right" | "bottom";
   collapsed: boolean;
-  side: "left" | "right" | "bottom";
   onToggle: () => void;
   expandLabel: string;
   collapseLabel: string;
-  unsaved?: boolean;
   children: JSX.Element;
 }) {
   return (
-    <View class="relative h-7 w-full min-w-full flex-row items-center gap-1 px-1">
-      <View class="min-w-0 flex-1 flex-row items-center gap-1">{props.children}</View>
-      <If when={props.active}>
-        <TipIconButton
-          label={props.collapsed ? props.expandLabel : props.collapseLabel}
-          onPress={props.onToggle}
+    <View class="h-7 w-full flex-row items-center border-b border-line px-1">
+      <View class="flex-row items-center gap-1">{props.children}</View>
+      <View class="min-h-px flex-1" style={{ flex: 1, flexGrow: 1 }} />
+      <TipIconButton label={props.collapsed ? props.expandLabel : props.collapseLabel} onPress={props.onToggle}>
+        <If
+          when={props.placement === "bottom"}
+          else={<IconCollapseHorizontal expand={props.collapsed} side={props.placement} />}
         >
-          <If
-            when={props.side === "bottom"}
-            else={<IconCollapseHorizontal expand={props.collapsed} side={props.side} />}
-          >
-            <IconCollapseVertical expand={props.collapsed} />
-          </If>
-        </TipIconButton>
-      </If>
-      <If when={props.active && !props.unsaved}>
-        <View style={{ pointerEvents: "none" }} class="absolute bottom-0 left-1 right-1 h-0.5 rounded-full bg-brand" />
-      </If>
+          <IconCollapseVertical expand={props.collapsed} />
+        </If>
+      </TipIconButton>
     </View>
   );
+}
+
+function parseLayoutChange(payload: unknown): DockAreaLayout | null {
+  if (payload && typeof payload === "object" && "center" in payload) {
+    return payload as DockAreaLayout;
+  }
+  if (payload && typeof payload === "object" && "layout" in payload) {
+    return (payload as { layout: DockAreaLayout }).layout;
+  }
+  return null;
 }
 
 export function IdeApp() {
@@ -118,14 +121,15 @@ export function IdeApp() {
               ref={area}
               class="flex-1"
               layout={layout()}
-              onLayoutChange={({ layout: next }) => {
+              onLayoutChange={(payload) => {
+                const next = parseLayoutChange(payload);
                 if (!next?.center) return;
                 layout.set(next);
                 syncActiveEditorFromLayout(next);
               }}
               panels={dockPanels()}
               groupClass="flex-1 bg-inset"
-              tabBarClass="flex-row w-full items-stretch gap-0 border-b border-line"
+              tabBarClass="flex-row w-full items-stretch border-b border-line"
               tabClass="group min-w-0"
               contentClass="flex-1"
               handleAccessibilityLabel="Resize panel"
@@ -136,59 +140,82 @@ export function IdeApp() {
               drawerClass="border-r border-border bg-card"
               sheetClass="rounded-t-2xl border-t border-border bg-card"
               backdropClass="bg-black/40"
-              renderTab={(tab) => {
-                const path = pathFromFilePanel(tab.panel);
-                const unsaved = path ? isPathDirty(path) : false;
-                const leftCollapsed = isDockCollapsed(layout(), "left");
-                const rightCollapsed = isDockCollapsed(layout(), "right");
-                const bottomCollapsed = isDockCollapsed(layout(), "bottom");
-
-                if (tab.panel === "tree") {
+              renderDock={(dock) => {
+                if (dock.placement === "left") {
+                  if (isDockCollapsed(layout(), "left")) {
+                    return (
+                      <View class="h-7 w-full items-center justify-center border-b border-line">
+                        <TipTextButton label="Expand object tree" onPress={collapseLeft}>
+                          <IconObjectTree3D />
+                        </TipTextButton>
+                      </View>
+                    );
+                  }
                   return (
-                    <DockTabRow
-                      active={tab.active}
-                      collapsed={leftCollapsed}
-                      side="left"
+                    <DockHeader
+                      placement="left"
+                      collapsed={false}
                       onToggle={collapseLeft}
                       expandLabel="Expand object tree"
                       collapseLabel="Collapse object tree"
                     >
                       <IconObjectTree3D />
-                    </DockTabRow>
+                    </DockHeader>
                   );
                 }
-
-                if (tab.panel === "agents") {
+                if (dock.placement === "right") {
+                  if (isDockCollapsed(layout(), "right")) {
+                    return (
+                      <View class="h-7 w-full items-center justify-center border-b border-line">
+                        <TipTextButton label="Expand agents" onPress={collapseRight}>
+                          <IconSidePanelRight />
+                        </TipTextButton>
+                      </View>
+                    );
+                  }
                   return (
-                    <DockTabRow
-                      active={tab.active}
-                      collapsed={rightCollapsed}
-                      side="right"
+                    <DockHeader
+                      placement="right"
+                      collapsed={false}
                       onToggle={collapseRight}
                       expandLabel="Expand agents"
                       collapseLabel="Collapse agents"
                     >
-                      <If when={rightCollapsed} else={<Text class="text-[13px] font-medium text-foreground">Agents</Text>}>
-                        <IconSidePanelRight />
-                      </If>
-                    </DockTabRow>
+                      <Text class="text-[13px] font-medium text-foreground">Agents</Text>
+                    </DockHeader>
                   );
                 }
-
-                if (tab.panel === "runtime") {
+                if (dock.placement === "bottom") {
+                  if (isDockCollapsed(layout(), "bottom")) {
+                    return (
+                      <View class="h-7 w-full flex-row items-center justify-end border-b border-line px-1">
+                        <TipTextButton label="Expand runtime preview" onPress={collapseBottom}>
+                          <IconCollapseVertical expand />
+                        </TipTextButton>
+                      </View>
+                    );
+                  }
                   return (
-                    <DockTabRow
-                      active={tab.active}
-                      collapsed={bottomCollapsed}
-                      side="bottom"
+                    <DockHeader
+                      placement="bottom"
+                      collapsed={false}
                       onToggle={collapseBottom}
                       expandLabel="Expand runtime preview"
                       collapseLabel="Collapse runtime preview"
                     >
                       <Text class="text-[13px] font-medium text-foreground">Runtime</Text>
-                    </DockTabRow>
+                    </DockHeader>
                   );
                 }
+                return null;
+              }}
+              renderTab={(tab) => {
+                if (DOCK_CHROME.has(tab.panel)) {
+                  return <View class="h-0 w-0 overflow-hidden opacity-0" accessibilityLabel={tabTitle(tab.panel)} />;
+                }
+
+                const path = pathFromFilePanel(tab.panel);
+                const unsaved = path ? isPathDirty(path) : false;
 
                 return (
                   <View class="relative h-7 flex-row items-center gap-1 px-2">
