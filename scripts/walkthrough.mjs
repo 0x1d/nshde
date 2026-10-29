@@ -42,16 +42,17 @@ async function waitForShell() {
   );
   await assertNoOverlayError();
   await page.getByText("Welcome to nshde").waitFor({ timeout: 30000 }).catch(() => {});
+  await page.getByText("components").first().waitFor({ timeout: 10000 }).catch(() => {});
 }
 
 await waitForShell();
 await shot("01-nsh-ide-home");
 
-await page.getByText("stats-card.nsh.tsx").click();
+await page.getByRole("button", { name: /^stats-/ }).click();
 await page.waitForFunction(() => !document.body.innerText.includes("Loading file…"), { timeout: 15000 });
 await shot("03-stats-card-editor");
 
-await page.getByRole("button", { name: /Mount at runtime|^run$/i }).first().click();
+await page.getByRole("button", { name: /Mount at runtime|Module is live/i }).first().click();
 await page.waitForTimeout(2000);
 await shot("04-runtime-stats");
 
