@@ -1,5 +1,3 @@
-"use client";
-
 import { AlertCircle, Cpu, RefreshCw } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import { loadModuleFromStorage, type LoadedModule } from "@/lib/modules/loader";
