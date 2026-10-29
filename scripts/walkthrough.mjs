@@ -14,17 +14,33 @@ page.on("console", (msg) => {
 });
 
 async function shot(name) {
+  await assertNoOverlayError();
   await page.waitForTimeout(800);
   await page.screenshot({ path: `${outDir}/${name}.png`, fullPage: false });
+}
+
+async function assertNoOverlayError() {
+  await page.waitForFunction(
+    () => {
+      const t = document.body.innerText;
+      if (t.includes("nsh hot: no module")) return false;
+      if (t.includes("platform is not defined")) return false;
+      const err = document.querySelector('[class*="error"], [role="alert"]');
+      if (err?.textContent?.includes("Error:")) return false;
+      return !t.includes("Error: nsh hot");
+    },
+    { timeout: 30000 },
+  );
 }
 
 async function waitForShell() {
   await page.goto(UI_URL, { waitUntil: "networkidle" });
   await page.getByText("nshde", { exact: true }).first().waitFor({ timeout: 30000 });
   await page.waitForFunction(
-    () => !document.body.innerText.includes("Error:") && !document.body.innerText.includes("Loading file…"),
+    () => !document.body.innerText.includes("Loading file…"),
     { timeout: 30000 },
   );
+  await assertNoOverlayError();
   await page.getByText("Welcome to nshde").waitFor({ timeout: 30000 }).catch(() => {});
 }
 
@@ -44,7 +60,12 @@ await shot("05-agent-implementer");
 
 await page.getByPlaceholder("Describe the module to develop…").fill("Build a todo list module");
 await page.getByRole("button", { name: "Develop module" }).click();
-await page.waitForTimeout(3000);
+await page.getByText("Ship runtime loader", { exact: false }).waitFor({ timeout: 20000 });
+await page.waitForFunction(
+  () => !document.body.innerText.includes("Loading file…"),
+  { timeout: 15000 },
+);
+await assertNoOverlayError();
 await shot("06-agent-generated-todo");
 
 await page.getByRole("button", { name: "Storage settings" }).click();

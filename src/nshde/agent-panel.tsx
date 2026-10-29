@@ -20,9 +20,9 @@ export function AgentPanelView() {
   const activeMeta = computed(() => agents().find((a) => a.id === activeAgent()));
 
   async function submit() {
-    if (!prompt().trim() || loading()) return;
+    const text = (prompt() ?? "").trim();
+    if (!text || loading()) return;
     loading.set(true);
-    const text = prompt().trim();
     const userMsg: AgentMessage = {
       id: crypto.randomUUID(),
       agentId: activeAgent(),
@@ -104,7 +104,7 @@ export function AgentPanelView() {
       <View class="gap-2 border-t border-border p-3">
         <Input
           value={prompt()}
-          onChange={({ value }) => prompt.set(value)}
+          onChange={(value) => prompt.set(typeof value === "string" ? value : "")}
           multiline
           submitBehavior="submit"
           onSubmit={() => void submit()}
@@ -114,7 +114,7 @@ export function AgentPanelView() {
         />
         <Button
           onPress={() => void submit()}
-          disabled={loading() || !prompt().trim()}
+          disabled={loading() || !(prompt() ?? "").trim()}
           class="h-10 items-center justify-center rounded-lg bg-primary disabled:opacity-50 active:opacity-90"
         >
           <Text class="text-sm font-medium text-primary-foreground">Develop module</Text>
