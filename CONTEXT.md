@@ -30,8 +30,10 @@ flowchart LR
 
 ## UI stack
 
-- **Shell**: NSH TSX entry `App.tsx` → `IdeApp` with `nsh/base` `DockArea`, `Editor`, `Tabs`, `Sheet`, `TextView`, `WebView` (gallery patterns).
-- **Dock chrome**: Side/bottom docks use `renderDock` headers; **left/right collapse** closes the dock (`open: false`) and shows a **`w-7` (28px) rail** beside `DockArea`. **Bottom** uses a 28px-tall in-dock rail. Collapse state is **per dock** via `dockRailsCollapsed`.
+- **Shell**: NSH TSX entry `App.tsx` → `IdeApp` with `nsh/base` `DockArea`, `Editor`, `Tabs`, `TextView`, `WebView`, following `examples/gallery` Dock and AI Chat.
+- **Dock chrome**: Left and right docks use the gallery tab (`h-9`, brand underline) and a `renderDock` strip (uppercase title + Hide). Hide calls `toggleDock`. The title bar **Tree** / **Agents** buttons open them again.
+- **Runtime rail**: An open dock cannot be shorter than 100 points. Hiding the bottom dock closes it and leaves an external rail `TAB_RAIL` (36, the gallery tab height) showing the Runtime tab. Pressing that tab calls `setDockOpen("bottom", true)`.
+- **Agent panel**: The right dock's content follows the gallery AI chat: empty state, suggestion chips (they wrap in the dock), user bubbles, assistant `TextView` replies, a full-width `Segmented` agent switch, and a rounded composer with a round send button.
 - **API bridge**: `host.js` + `src/nshde/api.ts` (`host.call` or `fetch` to port 43123).
 - **Dev**: `bun run dev:api` + `nsh run App.tsx --target web`.
 - **Production / Koyeb**: root `Dockerfile` (Bun 1.4+, matches `bun.lock` v2) installs `nsh`, runs `nsh package . --target web`, then `bun src/server.ts` serves the IDE and `/api/*` on `PORT`; use Dockerfile builder on Koyeb (not Node buildpacks).

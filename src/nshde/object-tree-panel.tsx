@@ -17,7 +17,7 @@ function TreeItem(props: { node: TreeNode; depth: number }) {
   return (
     <View>
       <View
-        class={`flex-row items-center gap-1 rounded-md py-0.5 pr-1 ${isSelected() && !isDir ? "bg-hover" : "hover:bg-hover"}`}
+        class={`h-7 flex-row items-center gap-1 rounded-md pr-1 ${isSelected() && !isDir ? "bg-hover" : "hover:bg-hover"}`}
         style={{ paddingLeft: 8 + props.depth * 14 }}
       >
         <If when={isDir}>
@@ -27,9 +27,7 @@ function TreeItem(props: { node: TreeNode; depth: number }) {
           >
             <IconChevron open={open()} />
             <View class="size-1.5 rounded-full bg-brand" />
-            <Text
-              class={`flex-1 font-mono text-xs ${isDirty() ? "text-warn" : "text-foreground"}`}
-            >
+            <Text class={`flex-1 font-mono text-xs ${isDirty() ? "text-warn" : "text-foreground"}`}>
               {props.node.name}
             </Text>
           </Button>
@@ -40,10 +38,8 @@ function TreeItem(props: { node: TreeNode; depth: number }) {
             class="min-w-0 flex-1 flex-row items-center gap-2 px-0 hover:bg-transparent"
           >
             <View class="w-3" />
-            <View class="size-1.5 rounded-full bg-faint" />
-            <Text
-              class={`flex-1 font-mono text-xs ${isDirty() ? "text-warn" : "text-foreground"}`}
-            >
+            <View class={`size-1.5 rounded-full ${isLive() ? "bg-brand" : "bg-faint"}`} />
+            <Text class={`flex-1 font-mono text-xs ${isDirty() ? "text-warn" : "text-foreground"}`}>
               {props.node.name}
             </Text>
           </Button>
@@ -54,7 +50,7 @@ function TreeItem(props: { node: TreeNode; depth: number }) {
             selected={isLive()}
             onPress={() => mountRuntime(props.node.path)}
           >
-            <If when={isLive()} else={<IconPlay tint="var(--muted-foreground)" />}>
+            <If when={isLive()} else={<IconPlay />}>
               <IconLive active />
             </If>
           </IconButton>
@@ -71,7 +67,7 @@ function TreeItem(props: { node: TreeNode; depth: number }) {
 
 export function ObjectTreePanelView() {
   return (
-    <Scroll class="flex-1 p-2">
+    <Scroll class="flex-1 gap-0.5 p-2">
       <If when={tree().length === 0}>
         <Text class="px-2 py-3 text-xs text-muted-foreground">No components yet. Ask an agent to build one.</Text>
       </If>
