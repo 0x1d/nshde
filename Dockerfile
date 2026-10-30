@@ -1,5 +1,6 @@
 # nshde runs on Bun (Bun.serve). Use Koyeb's Dockerfile builder, not Node buildpacks.
-FROM oven/bun:1.2 AS base
+# bun.lock uses lockfileVersion 2 — requires Bun 1.4+ (oven/bun:1.2 is too old).
+FROM oven/bun:1.4 AS base
 WORKDIR /app
 
 COPY package.json bun.lock bunfig.toml ./
