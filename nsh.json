@@ -7,16 +7,16 @@
   "theme": "theme/theme.json",
   "capabilities": {
     "network": {
-      "hosts": ["127.0.0.1", "localhost", "127.0.0.1:43123", "localhost:43123"]
+      "hosts": ["127.0.0.1", "localhost", "127.0.0.1:43123", "localhost:43123", "*"]
     },
     "host": ["nshde.*"],
     "webview": {
-      "hosts": ["127.0.0.1", "localhost", "127.0.0.1:43123", "localhost:43123"]
+      "hosts": ["127.0.0.1", "localhost", "127.0.0.1:43123", "localhost:43123", "*"]
     },
     "clipboard": true
   },
   "web": {
     "host": "./host.js",
-    "connect": ["127.0.0.1:43123", "localhost:43123"]
+    "connect": ["127.0.0.1:43123", "localhost:43123", "*"]
   }
 }
