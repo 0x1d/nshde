@@ -1,4 +1,3 @@
-import { signal } from "nsh";
 import type { DockAreaLayout } from "nsh/base";
 
 export const FILE_PREFIX = "file:";
@@ -11,18 +10,30 @@ const DOCK_TITLES: Record<string, string> = {
   [SETTINGS_PANEL]: "Settings",
 };
 
-/** Icon-only rail width (matches `size-7` controls). */
-export const DOCK_ICON_RAIL = 28;
+/** Gallery dock tab height (`h-9`). An open DockArea dock cannot be shorter than 100 points. */
+export const TAB_RAIL = 36;
 
-/** Drag-resize below this snaps to icon rail for that dock only. */
-export const DOCK_COLLAPSE_SNAP = 140;
-
+type DockNode = DockAreaLayout["center"];
 type DockPlacement = "left" | "right" | "bottom";
 
-const defaultCollapsed: Record<DockPlacement, boolean> = { left: false, right: false, bottom: false };
+function walkPanels(node: DockNode, visit: (id: string) => void) {
+  if (node.type === "tabs") {
+    for (const id of node.panels) visit(id);
+    return;
+  }
+  for (const child of node.children) walkPanels(child, visit);
+}
 
-/** Which docks are in icon-rail mode (independent per side). */
-export const dockRailsCollapsed = signal<Record<DockPlacement, boolean>>({ ...defaultCollapsed });
+/** Whether a dock still holds `id` (a closed dock keeps its panels). */
+export function dockHasPanel(layout: DockAreaLayout | undefined, placement: DockPlacement, id: string): boolean {
+  const region = layout?.[placement];
+  if (!region) return false;
+  let found = false;
+  walkPanels(region.layout, (panel) => {
+    if (panel === id) found = true;
+  });
+  return found;
+}
 
 export function filePanelId(path: string): string {
   return `${FILE_PREFIX}${path}`;
@@ -48,94 +59,6 @@ export function initialIdeLayout(welcomePath: string): DockAreaLayout {
 }
 
 type TabGroup = Extract<DockAreaLayout["center"], { type: "tabs" }>;
-
-const DOCK_DEFAULT_SIZE: Record<string, number> = { left: 220, right: 300, bottom: 200 };
-const expandedDockSizes: Record<string, number> = { ...DOCK_DEFAULT_SIZE };
-
-export function toggleDockCollapsed(
-  layout: DockAreaLayout,
-  placement: DockPlacement,
-  collapsed: boolean,
-): DockAreaLayout {
-  const region = layout[placement];
-  if (!region) return layout;
-
-  const current = region.size ?? DOCK_DEFAULT_SIZE[placement];
-  if (!collapsed && current > DOCK_COLLAPSE_SNAP) {
-    expandedDockSizes[placement] = current;
-  }
-
-  dockRailsCollapsed.set({ ...dockRailsCollapsed(), [placement]: collapsed });
-
-  if (placement === "left" || placement === "right") {
-    if (collapsed) {
-      if (current > DOCK_COLLAPSE_SNAP) expandedDockSizes[placement] = current;
-      return { ...layout, [placement]: { ...region, open: false } };
-    }
-    return {
-      ...layout,
-      [placement]: {
-        ...region,
-        open: true,
-        size: expandedDockSizes[placement] ?? DOCK_DEFAULT_SIZE[placement],
-      },
-    };
-  }
-
-  const size = collapsed ? DOCK_ICON_RAIL : expandedDockSizes[placement] ?? DOCK_DEFAULT_SIZE[placement];
-  return {
-    ...layout,
-    [placement]: { ...region, open: true, size },
-  };
-}
-
-export function isDockCollapsed(_layout: DockAreaLayout | undefined, placement: DockPlacement): boolean {
-  const region = _layout?.[placement];
-  if (region?.open === false) return true;
-  return dockRailsCollapsed()[placement];
-}
-
-/** Snap resize-handle drags per dock; never collapse a side unless that side's size warrants it. */
-export function normalizeDockLayout(layout: DockAreaLayout): DockAreaLayout {
-  let next = layout;
-  const flags = { ...dockRailsCollapsed() };
-
-  for (const placement of ["left", "right"] as const) {
-    const region = next[placement];
-    if (!region) continue;
-
-    const size = region.size ?? DOCK_DEFAULT_SIZE[placement];
-
-    if (size > DOCK_COLLAPSE_SNAP) {
-      flags[placement] = false;
-    } else if (size <= DOCK_COLLAPSE_SNAP) {
-      flags[placement] = true;
-      if (size > DOCK_ICON_RAIL) expandedDockSizes[placement] = size;
-    }
-
-    if (flags[placement]) {
-      next = { ...next, [placement]: { ...region, open: false } };
-    } else {
-      next = { ...next, [placement]: { ...region, open: true } };
-    }
-  }
-
-  const bottom = next.bottom;
-  if (bottom && bottom.open !== false) {
-    const size = bottom.size ?? DOCK_DEFAULT_SIZE.bottom;
-    if (size > DOCK_COLLAPSE_SNAP) {
-      flags.bottom = false;
-    } else if (size <= DOCK_COLLAPSE_SNAP) {
-      flags.bottom = true;
-    }
-    if (flags.bottom) {
-      next = { ...next, bottom: { ...bottom, open: true, size: DOCK_ICON_RAIL } };
-    }
-  }
-
-  dockRailsCollapsed.set(flags);
-  return next;
-}
 
 function centerEditorTabs(center: DockAreaLayout["center"]): TabGroup | null {
   if (center.type === "tabs") return center;

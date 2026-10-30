@@ -1,21 +1,12 @@
-import type { JSX } from "nsh";
-import { Image, Text, untracked, View } from "nsh";
-import { keymap } from "nsh";
-import { platform, windowSize } from "nsh";
+import { signal, Text, untracked, View } from "nsh";
+import { Image } from "nsh";
+import { keymap, platform, windowSize } from "nsh";
 import { Button, DockArea, type DockAreaLayout, type DockAreaRef } from "nsh/base";
 import logo from "../../assets/logo.svg";
 import { AgentPanelView } from "./agent-panel";
-import { isDockCollapsed, normalizeDockLayout, pathFromFilePanel, SETTINGS_PANEL, tabTitle, toggleDockCollapsed } from "./dock-layout";
+import { dockHasPanel, pathFromFilePanel, SETTINGS_PANEL, TAB_RAIL, tabTitle } from "./dock-layout";
 import { EditorPanelView } from "./editor-panel";
-import {
-  IconClose,
-  IconCollapseHorizontal,
-  IconCollapseVertical,
-  IconObjectTree3D,
-  IconSidePanelRight,
-  TipIconButton,
-  TipTextButton,
-} from "./icons";
+import { IconClose, TipTextButton } from "./icons";
 import { ObjectTreePanelView } from "./object-tree-panel";
 import { RuntimePanelView } from "./runtime-panel";
 import { SettingsPanelView } from "./settings-panel";
@@ -32,81 +23,58 @@ import {
   syncActiveEditorFromLayout,
 } from "./store";
 
+/** Gallery resize thumb: quiet hairline, a pill while hovered, solid while dragged. */
 const handleThumb =
-  "rounded-full bg-border opacity-0 transition-opacity hover:opacity-100 data-[dragging=true]:opacity-100";
+  "h-11 w-[3px] rounded-full bg-muted-foreground opacity-0 scale-y-0 transition duration-150 ease-out group-hover:opacity-40 group-hover:scale-y-[0.45] group-active:opacity-90 group-active:scale-y-100";
 
-const DOCK_CHROME = new Set(["tree", "agents", "runtime"]);
-
-function DockHeader(props: {
-  placement: "left" | "right" | "bottom";
-  collapsed: boolean;
-  onToggle: () => void;
-  expandLabel: string;
-  collapseLabel: string;
-  children: JSX.Element;
-}) {
-  return (
-    <View class="h-7 w-full flex-row items-center justify-between border-b border-line px-1">
-      <View class="flex-row items-center gap-1">{props.children}</View>
-      <TipIconButton label={props.collapsed ? props.expandLabel : props.collapseLabel} onPress={props.onToggle}>
-        <If
-          when={props.placement === "bottom"}
-          else={<IconCollapseHorizontal expand={props.collapsed} side={props.placement} />}
-        >
-          <IconCollapseVertical expand={props.collapsed} />
-        </If>
-      </TipIconButton>
-    </View>
-  );
-}
+const DOCKS: Record<string, string> = {
+  left: "Object tree",
+  right: "Agents",
+  bottom: "Runtime",
+};
 
 function parseLayoutChange(payload: unknown): DockAreaLayout | null {
   if (payload && typeof payload === "object" && "center" in payload) {
     return payload as DockAreaLayout;
   }
   if (payload && typeof payload === "object" && "layout" in payload) {
-    return (payload as { layout: DockAreaLayout }).layout;
+    const layout = (payload as { layout: unknown }).layout;
+    if (layout && typeof layout === "object" && "center" in layout) return layout as DockAreaLayout;
   }
   return null;
 }
 
-/** DockArea mounts `renderPanel` once per panel; bottom collapse toggles inside the panel. */
-function TreeDockPanel() {
-  return <ObjectTreePanelView />;
-}
-
-function AgentsDockPanel() {
-  return <AgentPanelView />;
-}
-
-function SideRail(props: {
-  edge: "left" | "right";
-  label: string;
-  onPress: () => void;
-  children: JSX.Element;
-}) {
-  const border = props.edge === "left" ? "border-r border-line" : "border-l border-line";
+/** Title-bar control from the gallery dock demo: a raised button whose dot is lit while the dock shows. */
+function DockToggle(props: { label: string; name: string; on: boolean; onPress: () => void }) {
   return (
-    <View class={`w-7 shrink-0 items-center bg-inset py-1 ${border}`}>
-      <TipTextButton label={props.label} onPress={props.onPress}>
-        {props.children}
-      </TipTextButton>
-    </View>
+    <Button
+      onPress={props.onPress}
+      selected={props.on}
+      accessibilityLabel={props.label}
+      class="h-8 flex-row items-center gap-2 rounded-lg border border-border bg-raised px-3 active:opacity-80"
+    >
+      <View class={`size-1.5 rounded-full ${props.on ? "bg-brand" : "bg-faint"}`} />
+      <Text class="text-[13px] font-semibold text-foreground">{props.name}</Text>
+    </Button>
   );
 }
 
-function RuntimeDockPanel() {
-  const collapsed = () => isDockCollapsed(dockLayout(), "bottom");
-  const toggle = () =>
-    dockLayout.set(toggleDockCollapsed(dockLayout(), "bottom", !collapsed()));
+/**
+ * The runtime dock closed. DockArea will not draw an open dock shorter than
+ * 100 points, so the collapsed pane is this rail: one gallery tab, `h-9`.
+ */
+function RuntimeRail(props: { onPress: () => void }) {
   return (
-    <If when={collapsed()} else={<RuntimePanelView />}>
-      <View class="h-full items-center justify-center overflow-hidden">
-        <TipTextButton label="Expand runtime preview" onPress={toggle}>
-          <Text class="text-[10px] text-muted-foreground">Runtime</Text>
-        </TipTextButton>
-      </View>
-    </If>
+    <View class="flex-row border-t border-line bg-inset" style={{ height: TAB_RAIL }}>
+      <Button
+        onPress={props.onPress}
+        accessibilityLabel="Expand runtime preview"
+        class="h-9 flex-row items-center px-3"
+      >
+        <Text class="text-[13px] font-medium text-foreground">Runtime</Text>
+        <View pointerEvents="none" class="absolute bottom-0 left-3 right-3 h-0.5 rounded-full bg-brand" />
+      </Button>
+    </View>
   );
 }
 
@@ -115,16 +83,19 @@ export function IdeApp() {
   const layout = dockLayout;
   const wide = () => untracked(windowSize).width >= 900;
   const pointer = platform.desktop;
+  const initiallyWide = untracked(windowSize).width >= 600;
+  const shown = signal<Record<"left" | "right" | "bottom", boolean>>({
+    left: initiallyWide,
+    right: initiallyWide,
+    bottom: initiallyWide,
+  });
   let area!: DockAreaRef;
 
   keymap.bind("mod+s", () => {
     void saveFile();
   });
 
-  const collapseLeft = () => layout.set(toggleDockCollapsed(layout(), "left", !isDockCollapsed(layout(), "left")));
-  const collapseRight = () => layout.set(toggleDockCollapsed(layout(), "right", !isDockCollapsed(layout(), "right")));
-  const collapseBottom = () =>
-    layout.set(toggleDockCollapsed(layout(), "bottom", !isDockCollapsed(layout(), "bottom")));
+  const runtimeRail = () => !shown().bottom && dockHasPanel(layout(), "bottom", "runtime");
 
   return (
     <View class="flex-1 bg-background">
@@ -139,6 +110,18 @@ export function IdeApp() {
               Storage: <Text class="text-foreground">{backend()}</Text>
             </Text>
           </If>
+          <DockToggle
+            label="Toggle object tree"
+            name="Tree"
+            on={shown().left}
+            onPress={() => area.toggleDock("left")}
+          />
+          <DockToggle
+            label="Toggle agents"
+            name="Agents"
+            on={shown().right}
+            onPress={() => area.toggleDock("right")}
+          />
           <TipTextButton label="Settings" onPress={() => openSettingsInEditor()}>
             <Text class="text-sm text-muted-foreground">⚙</Text>
           </TipTextButton>
@@ -155,27 +138,35 @@ export function IdeApp() {
 
       <View class="flex-1 p-3">
         <View class="flex-1 overflow-hidden rounded-xl border border-border bg-card p-1">
-          <View class="flex-1 flex-row overflow-hidden rounded-lg border border-line bg-inset">
-            <If when={isDockCollapsed(layout(), "left")}>
-              <SideRail edge="left" label="Expand object tree" onPress={collapseLeft}>
-                <IconObjectTree3D />
-              </SideRail>
-            </If>
+          <View class="min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-line bg-inset">
             <DockArea
               ref={area}
-              class="min-w-0 flex-1"
+              class="min-h-0 min-w-0 flex-1"
               layout={layout()}
               onLayoutChange={(payload) => {
                 const parsed = parseLayoutChange(payload);
                 if (!parsed?.center) return;
-                const next = normalizeDockLayout(parsed);
-                layout.set(next);
-                syncActiveEditorFromLayout(next);
+                layout.set(parsed);
+                syncActiveEditorFromLayout(parsed);
+              }}
+              onDockOpenChange={(placement, open) => {
+                // 0.3 reports (placement, open). Newer docs report one object.
+                if (placement && typeof placement === "object") {
+                  const event = placement as { placement?: string; open?: boolean };
+                  const edge = event.placement;
+                  if (edge === "left" || edge === "right" || edge === "bottom") {
+                    shown.set({ ...shown(), [edge]: !!event.open });
+                  }
+                  return;
+                }
+                if (placement === "left" || placement === "right" || placement === "bottom") {
+                  shown.set({ ...shown(), [placement]: !!open });
+                }
               }}
               panels={dockPanels()}
               groupClass="flex-1 bg-inset"
-              tabBarClass="flex-row w-full items-stretch border-b border-line"
-              tabClass="group min-w-0"
+              tabBarClass="flex-row gap-1 border-b border-line"
+              tabClass="group"
               contentClass="flex-1 overflow-hidden"
               handleAccessibilityLabel="Resize panel"
               handleClass="basis-px bg-line"
@@ -185,91 +176,48 @@ export function IdeApp() {
               drawerClass="border-r border-border bg-card"
               sheetClass="rounded-t-2xl border-t border-border bg-card"
               backdropClass="bg-black/40"
-              renderDock={(dock) => {
-                if (dock.placement === "left") {
-                  return (
-                    <DockHeader
-                      placement="left"
-                      collapsed={false}
-                      onToggle={collapseLeft}
-                      expandLabel="Expand object tree"
-                      collapseLabel="Collapse object tree"
-                    >
-                      <IconObjectTree3D />
-                    </DockHeader>
-                  );
-                }
-                if (dock.placement === "right") {
-                  return (
-                    <DockHeader
-                      placement="right"
-                      collapsed={false}
-                      onToggle={collapseRight}
-                      expandLabel="Expand agents"
-                      collapseLabel="Collapse agents"
-                    >
-                      <Text class="text-[13px] font-medium text-foreground">Agents</Text>
-                    </DockHeader>
-                  );
-                }
-                if (dock.placement === "bottom") {
-                  if (isDockCollapsed(layout(), "bottom")) {
-                    return (
-                      <View class="h-7 w-full flex-row items-center justify-end border-b border-line px-1">
-                        <TipTextButton label="Expand runtime preview" onPress={collapseBottom}>
-                          <IconCollapseVertical expand />
-                        </TipTextButton>
-                      </View>
-                    );
-                  }
-                  return (
-                    <DockHeader
-                      placement="bottom"
-                      collapsed={false}
-                      onToggle={collapseBottom}
-                      expandLabel="Expand runtime preview"
-                      collapseLabel="Collapse runtime preview"
-                    >
-                      <Text class="text-[13px] font-medium text-foreground">Runtime</Text>
-                    </DockHeader>
-                  );
-                }
-                return null;
-              }}
+              renderDock={(dock) => (
+                <View class="h-8 flex-row items-center border-b border-line pl-3 pr-1">
+                  <Text class="flex-1 text-[11px] font-semibold uppercase tracking-wider text-faint">
+                    {DOCKS[dock.placement] ?? dock.placement}
+                  </Text>
+                  <Button
+                    onPress={() => area.toggleDock(dock.placement)}
+                    accessibilityLabel={`Hide ${DOCKS[dock.placement] ?? dock.placement}`}
+                    class="rounded-md px-2 py-0.5 hover:bg-hover active:opacity-70"
+                  >
+                    <Text class="text-xs font-medium text-muted-foreground">Hide</Text>
+                  </Button>
+                </View>
+              )}
               renderTab={(tab) => {
-                if (DOCK_CHROME.has(tab.panel)) {
-                  return <View class="h-0 w-0 overflow-hidden opacity-0" accessibilityLabel={tabTitle(tab.panel)} />;
-                }
-
                 const path = pathFromFilePanel(tab.panel);
                 const unsaved = path ? isPathDirty(path) : false;
-
                 return (
-                  <View class="relative h-7 flex-row items-center gap-1 px-2">
-                    <If when={tab.panel === SETTINGS_PANEL}>
-                      <Text class="text-[13px] font-medium text-foreground">Settings</Text>
-                    </If>
-                    <If when={path}>
-                      <Text
-                        style={{ numberOfLines: 1 }}
-                        class={`max-w-44 text-[13px] font-medium ${unsaved ? "text-warn" : tab.active ? "text-foreground" : "text-muted-foreground group-hover:text-foreground"}`}
-                      >
-                        {tabTitle(tab.panel)}
-                      </Text>
-                    </If>
-                    <If when={tab.closable && (pointer || tab.active) && path}>
+                  <View class="h-9 flex-row items-center gap-1 px-3">
+                    <Text
+                      numberOfLines={1}
+                      class={`max-w-40 text-[13px] font-medium ${unsaved ? "text-warn" : tab.active ? "text-foreground" : "text-muted-foreground group-hover:text-foreground"}`}
+                    >
+                      {tabTitle(tab.panel)}
+                    </Text>
+                    <If when={tab.closable && (pointer || tab.active)}>
                       <Button
                         onPress={() => area.closePanel(tab.panel)}
                         accessibilityLabel={`Close ${tabTitle(tab.panel)}`}
-                        class="size-5 items-center justify-center rounded-md active:opacity-70"
+                        class={
+                          pointer
+                            ? "absolute right-1 top-2 size-5 items-center justify-center rounded-md bg-inset opacity-0 transition-opacity group-hover:opacity-100 hover:bg-raised"
+                            : "-mr-1.5 size-5 items-center justify-center rounded-md active:opacity-70"
+                        }
                       >
                         <IconClose />
                       </Button>
                     </If>
                     <If when={tab.active}>
                       <View
-                        style={{ pointerEvents: "none" }}
-                        class={`absolute bottom-0 left-2 right-2 h-0.5 rounded-full ${unsaved ? "bg-warn" : "bg-brand"}`}
+                        pointerEvents="none"
+                        class={`absolute bottom-0 left-3 right-3 h-0.5 rounded-full ${unsaved ? "bg-warn" : "bg-brand"}`}
                       />
                     </If>
                   </View>
@@ -281,9 +229,9 @@ export function IdeApp() {
                 </View>
               )}
               renderPanel={(panel) => {
-                if (panel.id === "tree") return <TreeDockPanel />;
-                if (panel.id === "agents") return <AgentsDockPanel />;
-                if (panel.id === "runtime") return <RuntimeDockPanel />;
+                if (panel.id === "tree") return <ObjectTreePanelView />;
+                if (panel.id === "agents") return <AgentPanelView />;
+                if (panel.id === "runtime") return <RuntimePanelView />;
                 if (panel.id === SETTINGS_PANEL) return <SettingsPanelView />;
                 const path = pathFromFilePanel(panel.id);
                 if (path) return <EditorPanelView path={path} />;
@@ -301,10 +249,8 @@ export function IdeApp() {
                 </View>
               )}
             />
-            <If when={isDockCollapsed(layout(), "right")}>
-              <SideRail edge="right" label="Expand agents" onPress={collapseRight}>
-                <IconSidePanelRight />
-              </SideRail>
+            <If when={runtimeRail()}>
+              <RuntimeRail onPress={() => area.setDockOpen("bottom", true)} />
             </If>
           </View>
         </View>
