@@ -70,34 +70,28 @@ function parseLayoutChange(payload: unknown): DockAreaLayout | null {
   return null;
 }
 
-/** DockArea mounts `renderPanel` once per panel; collapse must react inside the panel. */
+/** DockArea mounts `renderPanel` once per panel; bottom collapse toggles inside the panel. */
 function TreeDockPanel() {
-  const collapsed = () => isDockCollapsed(dockLayout(), "left");
-  const toggle = () =>
-    dockLayout.set(toggleDockCollapsed(dockLayout(), "left", !collapsed()));
-  return (
-    <If when={collapsed()} else={<ObjectTreePanelView />}>
-      <View class="flex-1 items-center overflow-hidden py-1">
-        <TipTextButton label="Expand object tree" onPress={toggle}>
-          <IconObjectTree3D />
-        </TipTextButton>
-      </View>
-    </If>
-  );
+  return <ObjectTreePanelView />;
 }
 
 function AgentsDockPanel() {
-  const collapsed = () => isDockCollapsed(dockLayout(), "right");
-  const toggle = () =>
-    dockLayout.set(toggleDockCollapsed(dockLayout(), "right", !collapsed()));
+  return <AgentPanelView />;
+}
+
+function SideRail(props: {
+  edge: "left" | "right";
+  label: string;
+  onPress: () => void;
+  children: JSX.Element;
+}) {
+  const border = props.edge === "left" ? "border-r border-line" : "border-l border-line";
   return (
-    <If when={collapsed()} else={<AgentPanelView />}>
-      <View class="flex-1 items-center overflow-hidden py-1">
-        <TipTextButton label="Expand agents" onPress={toggle}>
-          <IconSidePanelRight />
-        </TipTextButton>
-      </View>
-    </If>
+    <View class={`w-7 shrink-0 items-center bg-inset py-1 ${border}`}>
+      <TipTextButton label={props.label} onPress={props.onPress}>
+        {props.children}
+      </TipTextButton>
+    </View>
   );
 }
 
@@ -161,10 +155,15 @@ export function IdeApp() {
 
       <View class="flex-1 p-3">
         <View class="flex-1 overflow-hidden rounded-xl border border-border bg-card p-1">
-          <View class="flex-1 overflow-hidden rounded-lg border border-line bg-inset">
+          <View class="flex-1 flex-row overflow-hidden rounded-lg border border-line bg-inset">
+            <If when={isDockCollapsed(layout(), "left")}>
+              <SideRail edge="left" label="Expand object tree" onPress={collapseLeft}>
+                <IconObjectTree3D />
+              </SideRail>
+            </If>
             <DockArea
               ref={area}
-              class="flex-1"
+              class="min-w-0 flex-1"
               layout={layout()}
               onLayoutChange={(payload) => {
                 const parsed = parseLayoutChange(payload);
@@ -188,15 +187,6 @@ export function IdeApp() {
               backdropClass="bg-black/40"
               renderDock={(dock) => {
                 if (dock.placement === "left") {
-                  if (isDockCollapsed(layout(), "left")) {
-                    return (
-                      <View class="h-7 w-full items-center justify-center border-b border-line">
-                        <TipTextButton label="Expand object tree" onPress={collapseLeft}>
-                          <IconObjectTree3D />
-                        </TipTextButton>
-                      </View>
-                    );
-                  }
                   return (
                     <DockHeader
                       placement="left"
@@ -210,15 +200,6 @@ export function IdeApp() {
                   );
                 }
                 if (dock.placement === "right") {
-                  if (isDockCollapsed(layout(), "right")) {
-                    return (
-                      <View class="h-7 w-full items-center justify-center border-b border-line">
-                        <TipTextButton label="Expand agents" onPress={collapseRight}>
-                          <IconSidePanelRight />
-                        </TipTextButton>
-                      </View>
-                    );
-                  }
                   return (
                     <DockHeader
                       placement="right"
@@ -320,6 +301,11 @@ export function IdeApp() {
                 </View>
               )}
             />
+            <If when={isDockCollapsed(layout(), "right")}>
+              <SideRail edge="right" label="Expand agents" onPress={collapseRight}>
+                <IconSidePanelRight />
+              </SideRail>
+            </If>
           </View>
         </View>
       </View>
