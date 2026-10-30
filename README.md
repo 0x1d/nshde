@@ -9,7 +9,7 @@
 
 ## Features
 
-- **NSH app shell** — `DockArea` workspace: object tree, `Editor`, agent panel, runtime preview (gallery-style layout)
+- **NSH app shell** — Zed-style `DockArea`: agents on the left (sessions and conversation tabs), editor in the center, object tree on the right, runtime along the bottom. Collapsed panes leave an activity rail.
 - **Object tree** — components and files under `components/`, developed through nshde
 - **Code editor** — `nsh/base` `Editor` with syntax highlighting for TSX/JSON
 - **Agent panel** — Architect, Implementer, and Reviewer agents with `Tabs`, `TextView`, and chat-style composer
@@ -110,23 +110,22 @@ nsh package App.tsx --target web
 The **IDE shell** is an NSH TSX app (`App.tsx`, `nsh run --target web`). The **Bun server** serves `/api/*`, CORS for the dev host, and `/preview` (React sandbox iframe inside `WebView`).
 
 ```
-┌─────────────┬──────────────────────┬──────────────┐
-│ Object tree │ Editor + Runtime     │ Agent panel  │
-│  (Dock)     │ (Dock · Editor)      │ (Dock·Tabs)  │
-└──────┬──────┴──────────┬───────────┴──────┬───────┘
-       │                 │                  │
-       └────────┬────────┴────────┬─────────┘
-                ▼                 ▼
-         /api/storage      /api/agents
-                │
-                ▼
-     StorageProvider (fs | memory | s3)
-                │
-                ▼
-     /preview (TSX sandbox | WASM)
+┌────┬──────────┬─────────┬──────────┬────────┬────┐
+│    │ Sessions │  Chat   │  Editor  │  Tree  │    │
+│rail│          │  tabs   │          │        │rail│
+│    │          │         ├──────────┤        │    │
+│    │          │         │ Runtime  │        │    │
+└────┴──────────┴─────────┴──────────┴────────┴────┘
+         │            │           │
+         ▼            ▼           ▼
+   /api/agents   /api/storage   /preview
+         │            │
+         └─────┬──────┘
+               ▼
+   StorageProvider (fs | memory | s3)
 ```
 
-User modules in the preview still use a deliberate React sandbox today; the chrome follows NSH gallery components (`Dock`, `Editor`, chat, `Tabs`).
+User modules in the preview still use a deliberate React sandbox today. The chrome uses NSH gallery components (`DockArea`, `Toolbar`, `Editor`, chat, `Tabs`, `Collapsible`).
 
 ## Relation to NSH
 

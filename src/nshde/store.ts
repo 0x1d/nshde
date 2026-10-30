@@ -1,5 +1,6 @@
 import { batch, effect, signal } from "nsh";
 import type { DockAreaLayout } from "nsh/base";
+import type { AgentMessage } from "../lib/agents";
 import type { StorageBackend } from "../lib/storage/types";
 import {
   loadConfig,
@@ -13,9 +14,12 @@ import {
 import {
   activeFilePath,
   addFileTab,
+  agentPanelId,
   defaultDockPanels,
+  DEFAULT_SESSION_ID,
   filePanelId,
   initialIdeLayout,
+  openAgentTab,
   openSettingsTab,
   panelClosable,
   pathFromFilePanel,
@@ -24,6 +28,18 @@ import {
 
 const WELCOME = "components/welcome.nsh.tsx";
 
+export interface AgentSession {
+  id: string;
+  title: string;
+  messages: AgentMessage[];
+  loading: boolean;
+}
+
+function blankSession(id: string, title = "New agent"): AgentSession {
+  return { id, title, messages: [], loading: false };
+}
+
+export const sessions = signal<AgentSession[]>([blankSession(DEFAULT_SESSION_ID)]);
 export const tree = signal<TreeNode[]>([]);
 export const dockLayout = signal<DockAreaLayout>(initialIdeLayout(WELCOME));
 export const dockPanels = signal(defaultDockPanels(WELCOME));
@@ -44,6 +60,25 @@ function ensureDockPanel(id: string) {
   const list = dockPanels();
   if (list.some((p) => p.id === id)) return;
   dockPanels.set([...list, { id, closable: panelClosable(id) }]);
+}
+
+export function patchSession(id: string, patch: Partial<AgentSession>) {
+  sessions.set(sessions().map((session) => (session.id === id ? { ...session, ...patch } : session)));
+}
+
+export function createAgentSession() {
+  const id = crypto.randomUUID();
+  const panelId = agentPanelId(id);
+  batch(() => {
+    sessions.set([blankSession(id), ...sessions()]);
+    ensureDockPanel(panelId);
+    dockLayout.set(openAgentTab(dockLayout(), panelId));
+  });
+}
+
+export function focusAgentSession(id: string) {
+  ensureDockPanel(agentPanelId(id));
+  dockLayout.set(openAgentTab(dockLayout(), agentPanelId(id)));
 }
 
 function stashCurrentEditor() {

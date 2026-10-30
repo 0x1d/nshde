@@ -70,32 +70,47 @@ export function IconClose() {
   return <Text class="text-[14px] leading-none text-muted-foreground">×</Text>;
 }
 
+/** Disclosure chevron. Points right when closed and turns down when open, as in Zed and VS Code. */
 export function IconChevron(props: { open?: boolean }) {
-  return <Text class="w-3 text-center text-[10px] text-faint">{props.open ? "▾" : "▸"}</Text>;
+  return (
+    <Text
+      class={`w-3.5 text-center text-[14px] leading-none text-muted-foreground transition-transform ${props.open ? "rotate-90" : ""}`}
+    >
+      ›
+    </Text>
+  );
 }
 
-/** Side panel glyph for dock hide (gallery-style line icon). */
-export function IconSidePanel(props: { edge: "left" | "right" | "bottom" }) {
+/** Layout glyph from the IDE screenshots: a window with one edge filled. Built with flex so the fill stays inside the glyph. */
+export function IconLayout(props: { edge: "left" | "right" | "bottom"; active?: boolean }) {
+  const stroke = props.active ? "border-foreground" : "border-muted-foreground";
+  const fill = props.active ? "bg-foreground" : "bg-muted-foreground";
   if (props.edge === "bottom") {
     return (
-      <View class="h-3 w-4 flex-col justify-end">
-        <View class="min-h-[6px] flex-1 rounded-t-sm border border-b-0 border-muted-foreground" />
-        <View class="h-px bg-foreground" />
-      </View>
-    );
-  }
-  if (props.edge === "left") {
-    return (
-      <View class="h-4 w-3 flex-row">
-        <View class="w-px bg-foreground" />
-        <View class="flex-1 rounded-r-sm border border-l-0 border-muted-foreground" />
+      <View class={`h-3.5 w-4 flex-col overflow-hidden rounded-[2px] border ${stroke}`}>
+        <View class="min-h-0 flex-1" />
+        <View class={`h-[5px] ${fill}`} />
       </View>
     );
   }
   return (
-    <View class="h-4 w-3 flex-row">
-      <View class="flex-1 rounded-l-sm border border-r-0 border-muted-foreground" />
-      <View class="w-px bg-foreground" />
+    <View class={`h-3.5 w-4 flex-row overflow-hidden rounded-[2px] border ${stroke}`}>
+      <If when={props.edge === "left"}>
+        <View class={`w-[5px] self-stretch ${fill}`} />
+      </If>
+      <View class="min-w-0 flex-1" />
+      <If when={props.edge === "right"}>
+        <View class={`w-[5px] self-stretch ${fill}`} />
+      </If>
+    </View>
+  );
+}
+
+export function IconPlus() {
+  return (
+    <View class="size-3 items-center justify-center">
+      <View class="absolute h-px w-2.5 bg-foreground" />
+      <View class="absolute h-2.5 w-px bg-foreground" />
     </View>
   );
 }
