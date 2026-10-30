@@ -3,11 +3,12 @@ import { Button, DockArea, type DockAreaLayout, type DockAreaRef } from "nsh/bas
 import logo from "../../assets/logo.svg";
 import { AgentPanelView } from "./agent-panel";
 import {
-  dockHasPanel,
+  panelsAlongBottom,
   pathFromFilePanel,
   sessionIdFromPanel,
   SESSIONS_PANEL,
   SETTINGS_PANEL,
+  TAB_RAIL,
   tabShowsClose,
   tabTitle,
 } from "./dock-layout";
@@ -39,6 +40,8 @@ const handleThumb =
   "h-11 w-[3px] rounded-full bg-muted-foreground opacity-0 scale-y-0 transition duration-150 ease-out group-hover:opacity-40 group-hover:scale-y-[0.45] group-active:opacity-90 group-active:scale-y-100";
 
 type Edge = "left" | "right" | "bottom";
+const RUNTIME_SIZE = 220;
+const CHROME_HEIGHT = 36 + 22;
 
 function parseLayoutChange(payload: unknown): DockAreaLayout | null {
   if (payload && typeof payload === "object" && "center" in payload) {
@@ -104,6 +107,23 @@ function RuntimeRail(props: { onPress: () => void }) {
   );
 }
 
+function panelBody(id: string) {
+  if (id === "tree") return <ObjectTreePanelView />;
+  if (id === SESSIONS_PANEL) return <SessionPanelView />;
+  const sessionId = sessionIdFromPanel(id);
+  if (sessionId) return <AgentPanelView sessionId={sessionId} />;
+  if (id === "runtime") return <RuntimePanelView />;
+  if (id === SETTINGS_PANEL) return <SettingsPanelView />;
+  const path = pathFromFilePanel(id);
+  if (path) return <EditorPanelView path={path} />;
+  if (isFilePanel(id)) return null;
+  return (
+    <View class="flex-1 items-center justify-center">
+      <Text class="text-sm text-muted-foreground">Unknown panel</Text>
+    </View>
+  );
+}
+
 function StatusBar() {
   const path = selectedPath();
   const name = path?.split("/").pop();
@@ -146,23 +166,75 @@ export function IdeApp() {
     void saveFile();
   });
   keymap.bind("mod+b", () => area.toggleDock("left"));
-  keymap.bind("mod+j", () => area.toggleDock("bottom"));
+  keymap.bind("mod+j", () => setPanelVisible("runtime", !panelOpen("runtime")));
 
   const titleFor = (panel: string) => {
     const sessionId = sessionIdFromPanel(panel);
     if (!sessionId) return tabTitle(panel);
     return sessions().find((session) => session.id === sessionId)?.title ?? "New agent";
   };
-  const runtimeRail = () => !shown().bottom && dockHasPanel(layout(), "bottom", "runtime");
-  const setEdge = (edge: Edge, open: boolean) => area.setDockOpen(edge, open);
-  const sideSpan = (edge: "left" | "right") => {
-    if (!shown()[edge]) return 0;
-    const size = layout()[edge]?.size;
-    return typeof size === "number" ? size : edge === "left" ? 520 : 248;
+  const panelOpen = (id: string) => dockPanels().find((panel) => panel.id === id)?.visible !== false;
+  const setPanelVisible = (id: string, open: boolean) => {
+    const list = dockPanels();
+    dockPanels.set(list.map((panel) => (panel.id === id ? { ...panel, visible: open } : panel)));
   };
-  const bottomSpan = () => {
-    const size = layout().bottom?.size;
-    return typeof size === "number" ? size : 220;
+  const hiddenPanels = () => new Set(dockPanels().filter((panel) => panel.visible === false).map((panel) => panel.id));
+  const runtimeRail = () => !panelOpen("runtime");
+  const agentsSpan = () => {
+    if (!shown().left) return 0;
+    const size = layout().left?.size;
+    return typeof size === "number" ? size : 520;
+  };
+  // A null size on the center split is shared equally. Pin the default
+  // columns so Explorer stays 248 wide and Runtime stays 220 tall.
+  const center = layout().center;
+  if (center.type === "split" && center.axis === "horizontal" && center.children.length === 2) {
+    const column = center.children[0];
+    const explorer = center.children[1];
+    const runtime = column.type === "split" ? column.children[column.children.length - 1] : undefined;
+    const explorerSize = center.sizes?.[1];
+    const runtimeSize = column.type === "split" ? column.sizes?.[column.sizes.length - 1] : undefined;
+    const treeOpen = panelOpen("tree");
+    const leftDock = shown().left ? (layout().left?.size ?? 520) : 0;
+    const rails = width() >= 840 ? 96 : 0;
+    const explorerWidth = treeOpen ? 248 : 0;
+    const editorWidth = Math.max(240, windowSize().width - rails - leftDock - explorerWidth);
+    const editorHeight = Math.max(240, windowSize().height - CHROME_HEIGHT - RUNTIME_SIZE);
+    const defaultExplorer = explorerSize === 248 || explorerSize === 0 || explorerSize == null;
+    const defaultRuntime = runtimeSize === RUNTIME_SIZE || runtimeSize == null;
+    if (
+      column.type === "split" &&
+      column.axis === "vertical" &&
+      explorer.type === "tabs" &&
+      explorer.panels.length === 1 &&
+      explorer.panels[0] === "tree" &&
+      runtime?.type === "tabs" &&
+      runtime.panels.length === 1 &&
+      runtime.panels[0] === "runtime" &&
+      defaultExplorer &&
+      defaultRuntime &&
+      (center.sizes?.[0] !== editorWidth ||
+        center.sizes?.[1] !== explorerWidth ||
+        column.sizes?.[0] !== editorHeight ||
+        column.sizes?.[1] !== RUNTIME_SIZE)
+    ) {
+      layout.set({
+        ...layout(),
+        center: {
+          ...center,
+          sizes: [editorWidth, explorerWidth],
+          children: [{ ...column, sizes: [editorHeight, RUNTIME_SIZE] }, explorer],
+        },
+      });
+    }
+  }
+  const explorerSpan = () => {
+    const node = layout().center;
+    if (!panelOpen("tree") || node.type !== "split" || node.axis !== "horizontal") return 0;
+    const edge = node.children[node.children.length - 1];
+    if (edge?.type !== "tabs" || !edge.panels.includes("tree")) return 0;
+    const size = node.sizes?.[node.sizes.length - 1];
+    return typeof size === "number" ? size : 248;
   };
 
   return (
@@ -175,9 +247,9 @@ export function IdeApp() {
           <Text class="mr-2 text-[11px] text-faint">Storage {backend()}</Text>
         </If>
         <View accessibilityLabel="Layout" class="flex-row items-center">
-          <LayoutToggle edge="left" label="Toggle agents" on={shown().left} onPress={(open) => setEdge("left", open)} />
-          <LayoutToggle edge="bottom" label="Toggle runtime" on={shown().bottom} onPress={(open) => setEdge("bottom", open)} />
-          <LayoutToggle edge="right" label="Toggle explorer" on={shown().right} onPress={(open) => setEdge("right", open)} />
+          <LayoutToggle edge="left" label="Toggle agents" on={shown().left} onPress={(open) => area.setDockOpen("left", open)} />
+          <LayoutToggle edge="bottom" label="Toggle runtime" on={panelOpen("runtime")} onPress={(open) => setPanelVisible("runtime", open)} />
+          <LayoutToggle edge="right" label="Toggle explorer" on={panelOpen("tree")} onPress={(open) => setPanelVisible("tree", open)} />
         </View>
         <View class="mx-1 h-4 w-px bg-line" />
         <TipTextButton label="Settings" onPress={() => openSettingsInEditor()}>
@@ -195,7 +267,7 @@ export function IdeApp() {
 
       <View class="min-h-0 flex-1 flex-row">
         <If when={roomy()}>
-          <ActivityRail edge="left" open={shown().left} onPress={(open) => setEdge("left", open)} />
+          <ActivityRail edge="left" open={shown().left} onPress={(open) => area.setDockOpen("left", open)} />
         </If>
         <View class="relative min-h-0 min-w-0 flex flex-1 flex-col">
           <DockArea
@@ -269,6 +341,11 @@ export function IdeApp() {
                       <IconClose />
                     </Button>
                   </If>
+                  <If when={tab.panel === "runtime"}>
+                    <TipIconButton label="Collapse runtime" onPress={() => setPanelVisible("runtime", false)}>
+                      <IconLayout edge="bottom" active />
+                    </TipIconButton>
+                  </If>
                 </View>
               );
             }}
@@ -278,18 +355,12 @@ export function IdeApp() {
               </View>
             )}
             renderPanel={(panel) => {
-              if (panel.id === "tree") return <ObjectTreePanelView />;
-              if (panel.id === SESSIONS_PANEL) return <SessionPanelView />;
-              const sessionId = sessionIdFromPanel(panel.id);
-              if (sessionId) return <AgentPanelView sessionId={sessionId} />;
-              if (panel.id === "runtime") return <RuntimePanelView />;
-              if (panel.id === SETTINGS_PANEL) return <SettingsPanelView />;
-              const path = pathFromFilePanel(panel.id);
-              if (path) return <EditorPanelView path={path} />;
-              if (isFilePanel(panel.id)) return null;
+              const body = panelBody(panel.id);
+              const covered = runtimeRail() && panelsAlongBottom(layout().center, hiddenPanels()).includes(panel.id);
+              if (!covered) return body;
               return (
-                <View class="flex-1 items-center justify-center">
-                  <Text class="text-sm text-muted-foreground">Unknown panel</Text>
+                <View class="min-h-0 flex-1 flex-col" style={{ paddingBottom: TAB_RAIL }}>
+                  {body}
                 </View>
               );
             }}
@@ -300,24 +371,17 @@ export function IdeApp() {
               </View>
             )}
           />
-          <If when={shown().bottom}>
-            <View
-              class="absolute z-10 h-[34px] w-8 items-center justify-center"
-              style={{ right: sideSpan("right") + 2, bottom: bottomSpan() - 34 }}
-            >
-              <TipIconButton label="Collapse runtime" onPress={() => area.toggleDock("bottom")}>
-                <IconLayout edge="bottom" active />
-              </TipIconButton>
-            </View>
-          </If>
           <If when={runtimeRail()}>
-            <View class="absolute bottom-0 z-10 h-9" style={{ left: sideSpan("left"), right: sideSpan("right") }}>
-              <RuntimeRail onPress={() => area.setDockOpen("bottom", true)} />
+            <View
+              class="absolute bottom-0 z-10 h-9"
+              style={{ left: agentsSpan(), right: explorerSpan() }}
+            >
+              <RuntimeRail onPress={() => setPanelVisible("runtime", true)} />
             </View>
           </If>
         </View>
         <If when={roomy()}>
-          <ActivityRail edge="right" open={shown().right} onPress={(open) => setEdge("right", open)} />
+          <ActivityRail edge="right" open={panelOpen("tree")} onPress={(open) => setPanelVisible("tree", open)} />
         </If>
       </View>
       <StatusBar />
