@@ -9,7 +9,7 @@
     "dev": "bun run dev:api & bash scripts/nsh-run.sh run App.tsx --target web",
     "check:nsh": "bash scripts/nsh-run.sh --version",
     "build": "bun build src/server.ts --target=bun --outdir dist --minify",
-    "start": "NODE_ENV=production bun dist/server.js",
+    "start": "NODE_ENV=production bun src/server.ts",
     "lint": "eslint"
   },
   "dependencies": {
