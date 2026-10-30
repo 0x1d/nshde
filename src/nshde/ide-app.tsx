@@ -1,24 +1,25 @@
-import { Image, keymap, signal, Text, untracked, View, windowSize } from "nsh";
+import { Image, keymap, signal, Text, token, untracked, View, windowSize } from "nsh";
 import { Button, DockArea, type DockAreaLayout, type DockAreaRef } from "nsh/base";
 import logo from "../../assets/logo.svg";
 import { AgentPanelView } from "./agent-panel";
 import {
-  agentPanelId,
   dockHasPanel,
   pathFromFilePanel,
   sessionIdFromPanel,
   SESSIONS_PANEL,
   SETTINGS_PANEL,
+  tabShowsClose,
   tabTitle,
 } from "./dock-layout";
 import { EditorPanelView } from "./editor-panel";
-import { IconClose, IconLayout, TipIconButton, TipTextButton } from "./icons";
+import { IconClose, IconLayout, IconRobot, IconTree, TipIconButton, TipTextButton } from "./icons";
 import { ObjectTreePanelView } from "./object-tree-panel";
 import { RuntimePanelView } from "./runtime-panel";
 import { SessionPanelView } from "./session-panel";
 import { SettingsPanelView } from "./settings-panel";
 import {
   backend,
+  bindDockArea,
   bootError,
   bootIdeData,
   dirty,
@@ -36,12 +37,6 @@ import {
 /** Gallery resize thumb: quiet hairline, a pill while hovered, solid while dragged. */
 const handleThumb =
   "h-11 w-[3px] rounded-full bg-muted-foreground opacity-0 scale-y-0 transition duration-150 ease-out group-hover:opacity-40 group-hover:scale-y-[0.45] group-active:opacity-90 group-active:scale-y-100";
-
-const DOCKS: Record<string, string> = {
-  left: "Agents",
-  right: "Explorer",
-  bottom: "Runtime",
-};
 
 type Edge = "left" | "right" | "bottom";
 
@@ -84,13 +79,10 @@ function ActivityRail(props: { edge: "left" | "right"; open: boolean; onPress: (
         selected={props.open}
         accessibilityLabel={label}
         onPress={() => props.onPress(!props.open)}
-        class="relative size-10 items-center justify-center rounded-md hover:bg-hover selected:bg-accent"
+        class="size-10 items-center justify-center rounded-md hover:bg-hover"
       >
-        <IconLayout edge={props.edge} active={props.open} />
-        <If when={props.open}>
-          <View
-            class={`absolute bottom-2 top-2 w-0.5 rounded-full bg-brand ${props.edge === "right" ? "right-0" : "left-0"}`}
-          />
+        <If when={props.edge === "left"} else={<IconTree active={props.open} />}>
+          <IconRobot active={props.open} />
         </If>
       </Button>
     </View>
@@ -122,7 +114,9 @@ function StatusBar() {
       <Text class="text-[11px] text-faint">{backend()}</Text>
       <View class="flex-1" />
       <If when={dirty()}>
-        <Text class="text-[11px] text-warn">Unsaved</Text>
+        <Text class="text-[11px]" style={{ color: token("warn") }}>
+          Unsaved
+        </Text>
       </If>
       <If when={name}>
         <Text class="text-[11px] text-faint">{name}</Text>
@@ -161,6 +155,15 @@ export function IdeApp() {
   };
   const runtimeRail = () => !shown().bottom && dockHasPanel(layout(), "bottom", "runtime");
   const setEdge = (edge: Edge, open: boolean) => area.setDockOpen(edge, open);
+  const sideSpan = (edge: "left" | "right") => {
+    if (!shown()[edge]) return 0;
+    const size = layout()[edge]?.size;
+    return typeof size === "number" ? size : edge === "left" ? 520 : 248;
+  };
+  const bottomSpan = () => {
+    const size = layout().bottom?.size;
+    return typeof size === "number" ? size : 220;
+  };
 
   return (
     <View class="flex-1 bg-background">
@@ -194,9 +197,12 @@ export function IdeApp() {
         <If when={roomy()}>
           <ActivityRail edge="left" open={shown().left} onPress={(open) => setEdge("left", open)} />
         </If>
-        <View class="min-h-0 min-w-0 flex-1 flex-col">
+        <View class="relative min-h-0 min-w-0 flex flex-1 flex-col">
           <DockArea
-            ref={area}
+            ref={(next) => {
+              area = next;
+              bindDockArea(next);
+            }}
             class="min-h-0 min-w-0 flex-1 bg-background"
             layout={layout()}
             onLayoutChange={(payload) => {
@@ -231,19 +237,6 @@ export function IdeApp() {
             drawerClass="border-r border-border bg-inset"
             sheetClass="rounded-t-2xl border-t border-border bg-inset"
             backdropClass="bg-black/40"
-            renderDock={(dock) => (
-              <View class="h-8 flex-row items-center border-b border-line bg-inset pl-3 pr-1">
-                <Text class="flex-1 text-[11px] font-semibold tracking-wide text-faint">
-                  {DOCKS[dock.placement] ?? dock.placement}
-                </Text>
-                <TipIconButton
-                  label={`Collapse ${DOCKS[dock.placement] ?? dock.placement}`}
-                  onPress={() => area.toggleDock(dock.placement)}
-                >
-                  <IconLayout edge={dock.placement} active />
-                </TipIconButton>
-              </View>
-            )}
             renderTab={(tab) => {
               const path = pathFromFilePanel(tab.panel);
               const unsaved = path ? isPathDirty(path) : false;
@@ -251,27 +244,27 @@ export function IdeApp() {
               return (
                 <View
                   class={`h-[34px] flex-row items-center gap-1.5 border-t-2 px-3 ${
-                    active
-                      ? unsaved
-                        ? "border-warn bg-background"
-                        : "border-foreground bg-background"
-                      : "border-transparent"
+                    active ? "bg-background" : "border-transparent"
                   }`}
+                  style={active ? { borderTopColor: unsaved ? token("warn") : token("foreground") } : undefined}
                 >
                   <If when={unsaved}>
-                    <View class="size-1.5 rounded-full bg-warn" />
+                    <View class="size-1.5 rounded-full" style={{ backgroundColor: token("warn") }} />
                   </If>
                   <Text
                     numberOfLines={1}
-                    class={`max-w-40 text-[13px] ${active ? "text-foreground" : "text-muted-foreground group-hover:text-foreground"}`}
+                    class={`max-w-40 text-[13px] ${active ? "" : "text-muted-foreground group-hover:text-foreground"}`}
+                    style={unsaved ? { color: token("warn") } : active ? { color: token("foreground") } : undefined}
                   >
                     {titleFor(tab.panel)}
                   </Text>
-                  <If when={tab.closable && active}>
+                  <If when={tabShowsClose(tab.panel)}>
                     <Button
-                      onPress={() => area.closePanel(tab.panel)}
+                      onPress={() => area.removePanel(tab.panel)}
                       accessibilityLabel={`Close ${titleFor(tab.panel)}`}
-                      class="size-5 items-center justify-center rounded-md hover:bg-hover active:opacity-70"
+                      class={`size-5 items-center justify-center rounded-md hover:bg-hover active:opacity-70 ${
+                        active ? "" : "opacity-0 group-hover:opacity-100"
+                      }`}
                     >
                       <IconClose />
                     </Button>
@@ -307,8 +300,20 @@ export function IdeApp() {
               </View>
             )}
           />
+          <If when={shown().bottom}>
+            <View
+              class="absolute z-10 h-[34px] w-8 items-center justify-center"
+              style={{ right: sideSpan("right") + 2, bottom: bottomSpan() - 34 }}
+            >
+              <TipIconButton label="Collapse runtime" onPress={() => area.toggleDock("bottom")}>
+                <IconLayout edge="bottom" active />
+              </TipIconButton>
+            </View>
+          </If>
           <If when={runtimeRail()}>
-            <RuntimeRail onPress={() => area.setDockOpen("bottom", true)} />
+            <View class="absolute bottom-0 z-10 h-9" style={{ left: sideSpan("left"), right: sideSpan("right") }}>
+              <RuntimeRail onPress={() => area.setDockOpen("bottom", true)} />
+            </View>
           </If>
         </View>
         <If when={roomy()}>

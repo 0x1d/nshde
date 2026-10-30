@@ -1,5 +1,5 @@
 import { batch, effect, signal } from "nsh";
-import type { DockAreaLayout } from "nsh/base";
+import type { DockAreaLayout, DockAreaRef } from "nsh/base";
 import type { AgentMessage } from "../lib/agents";
 import type { StorageBackend } from "../lib/storage/types";
 import {
@@ -54,7 +54,15 @@ export const previewSrc = signal("http://127.0.0.1:43123/preview/blank");
 export const bootError = signal<string | null>(null);
 
 const editorCache = signal<Record<string, { value: string; dirty: boolean; mountKey: number }>>({});
+/** Bumps when a file is loaded from outside the editor. Typing does not touch it, so the editor is not rebuilt on each key. */
+export const editorEpoch = signal<Record<string, number>>({});
 export { editorCache };
+
+let dockArea: DockAreaRef | undefined;
+
+export function bindDockArea(area: DockAreaRef) {
+  dockArea = area;
+}
 
 function ensureDockPanel(id: string) {
   const list = dockPanels();
@@ -110,17 +118,19 @@ export async function loadFile(path: string) {
       editorValue.set(cached.value);
       dirty.set(false);
       loadingFile.set(false);
+      if ((editorEpoch()[path] ?? 0) === 0) editorEpoch.set({ ...editorEpoch(), [path]: 1 });
     });
     return;
   }
   try {
     bootError.set(null);
     const content = cached?.value ?? (await readFile(path));
+    const mountKey = (editorEpoch()[path] ?? 0) + 1;
     batch(() => {
       editorValue.set(content);
       selectedPath.set(path);
       dirty.set(cached?.dirty ?? false);
-      const mountKey = (cached?.mountKey ?? 0) + 1;
+      editorEpoch.set({ ...editorEpoch(), [path]: mountKey });
       editorCache.set({
         ...editorCache(),
         [path]: { value: content, dirty: cached?.dirty ?? false, mountKey },
@@ -134,9 +144,11 @@ export async function loadFile(path: string) {
 }
 
 export function openFileInEditor(path: string) {
+  const id = filePanelId(path);
   stashCurrentEditor();
-  ensureDockPanel(filePanelId(path));
-  dockLayout.set(addFileTab(dockLayout(), path));
+  ensureDockPanel(id);
+  if (dockArea) dockArea.addPanel(id, "center");
+  else dockLayout.set(addFileTab(dockLayout(), path));
   void loadFile(path);
 }
 
@@ -158,15 +170,21 @@ export function syncActiveEditorFromLayout(layout: DockAreaLayout | undefined) {
   void loadFile(path);
 }
 
-export async function saveFile() {
-  const path = selectedPath();
-  if (!path || path.endsWith(".wasm")) return;
-  await writeFile(path, editorValue());
+export async function saveFile(path?: string) {
+  const target = path ?? selectedPath();
+  if (!target || target.endsWith(".wasm")) return;
+  const content = editorCache()[target]?.value ?? (target === selectedPath() ? editorValue() : null);
+  if (content == null) return;
+  await writeFile(target, content);
   batch(() => {
-    dirty.set(false);
-    editorCache.set({ ...editorCache(), [path]: { value: editorValue(), dirty: false, mountKey: editorCache()[path]?.mountKey ?? 0 } });
+    if (target === selectedPath()) dirty.set(false);
+    const prev = editorCache()[target];
+    editorCache.set({
+      ...editorCache(),
+      [target]: { value: content, dirty: false, mountKey: prev?.mountKey ?? editorEpoch()[target] ?? 0 },
+    });
   });
-  if (runtimePath() === path) {
+  if (runtimePath() === target) {
     runtimeRevision.update((r) => r + 1);
   }
   await refreshTree();
@@ -174,19 +192,23 @@ export async function saveFile() {
 
 export function handleModuleGenerated(path: string, source: string) {
   void refreshTree();
-  ensureDockPanel(filePanelId(path));
+  const id = filePanelId(path);
   batch(() => {
-    dockLayout.set(addFileTab(dockLayout(), path));
+    ensureDockPanel(id);
     selectedPath.set(path);
     editorValue.set(source);
     dirty.set(false);
     runtimePath.set(path);
     runtimeRevision.update((r) => r + 1);
+    const mountKey = (editorEpoch()[path] ?? 0) + 1;
+    editorEpoch.set({ ...editorEpoch(), [path]: mountKey });
     editorCache.set({
       ...editorCache(),
-      [path]: { value: source, dirty: false, mountKey: (editorCache()[path]?.mountKey ?? 0) + 1 },
+      [path]: { value: source, dirty: false, mountKey },
     });
+    if (!dockArea) dockLayout.set(addFileTab(dockLayout(), path));
   });
+  dockArea?.addPanel(id, "center");
 }
 
 export async function changeBackend(next: StorageBackend) {
@@ -203,12 +225,16 @@ export function mountRuntime(path: string) {
 }
 
 export function onEditorValueChange(path: string, value: string) {
-  editorValue.set(value);
-  dirty.set(true);
   const prev = editorCache()[path];
-  editorCache.set({
-    ...editorCache(),
-    [path]: { value, dirty: true, mountKey: prev?.mountKey ?? 0 },
+  if (prev?.value === value) return;
+  batch(() => {
+    selectedPath.set(path);
+    editorValue.set(value);
+    dirty.set(true);
+    editorCache.set({
+      ...editorCache(),
+      [path]: { value, dirty: true, mountKey: prev?.mountKey ?? editorEpoch()[path] ?? 0 },
+    });
   });
 }
 

@@ -1,5 +1,5 @@
 import type { JSX } from "nsh";
-import { Scroll, signal, Text, View } from "nsh";
+import { Scroll, signal, Text, token, View } from "nsh";
 import { Button, Collapsible } from "nsh/base";
 import type { TreeNode } from "./api";
 import { IconButton, IconChevron, IconLive, IconPlay } from "./icons";
@@ -33,7 +33,7 @@ function TreeRow(props: {
           {props.node.name}
         </Text>
         <If when={dirty()}>
-          <View class="size-1.5 rounded-full bg-warn" />
+          <View class="size-1.5 rounded-full" style={{ backgroundColor: token("warn") }} />
         </If>
       </Button>
       {props.trailing}

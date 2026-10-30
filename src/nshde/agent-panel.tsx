@@ -1,8 +1,7 @@
 import { batch, effect, platform, Scroll, signal, Text, token, View } from "nsh";
-import { Button, Input, TextView } from "nsh/base";
-import type { AgentDefinition, AgentId, AgentMessage } from "../lib/agents";
+import { Button, Input, Menu, MenuItem, TextView } from "nsh/base";
+import { AGENTS, type AgentDefinition, type AgentId, type AgentMessage } from "../lib/agents";
 import { generateModule, listAgents } from "./api";
-import { Segmented } from "./segmented";
 import { handleModuleGenerated, patchSession, sessions } from "./store";
 
 const PROMPTS = [
@@ -78,7 +77,8 @@ function Conversation(props: { sessionId: string }) {
       .catch(() => catalog.set([]));
   });
 
-  const activeMeta = () => catalog().find((agent) => agent.id === activeAgent());
+  const roles = () => (catalog().length > 0 ? catalog() : AGENTS);
+  const activeMeta = () => roles().find((agent) => agent.id === activeAgent());
   const canSend = () => !!(prompt() ?? "").trim() && !current().loading;
 
   async function submit(raw?: string) {
@@ -211,14 +211,35 @@ function Conversation(props: { sessionId: string }) {
             class="px-2.5 py-2 text-[13px] leading-5 text-foreground placeholder:text-muted-foreground"
             style={{ height: inputHeight() + 16 }}
           />
-          <If when={catalog().length > 0}>
-            <Segmented
-              options={catalog().map((agent) => ({ value: agent.id, label: agent.name }))}
-              value={activeAgent()}
-              onChange={(id) => activeAgent.set(id)}
-            />
-          </If>
-          <View class="flex-row items-center justify-end">
+          <View class="flex-row items-center gap-1 px-0.5">
+            <Menu
+              placement="top"
+              align="start"
+              offset={6}
+              popupClass="min-w-[180px] rounded-lg border border-border bg-popover p-1 shadow-md"
+              trigger={
+                <View
+                  accessibilityLabel="Agent role"
+                  class="h-7 flex-row items-center gap-1 rounded-md px-2 hover:bg-hover active:opacity-80"
+                >
+                  <Text class="text-[12px] font-medium text-foreground">{activeMeta()?.name ?? "Implementer"}</Text>
+                  <Text class="text-[10px] text-muted-foreground">▾</Text>
+                </View>
+              }
+            >
+              <Each of={roles()}>
+                {(agent) => (
+                  <MenuItem
+                    onSelect={() => activeAgent.set(agent().id)}
+                    accessibilityLabel={agent().name}
+                    class="h-8 flex-row items-center rounded-md px-2 hover:bg-hover"
+                  >
+                    <Text class="text-[13px] text-foreground">{agent().name}</Text>
+                  </MenuItem>
+                )}
+              </Each>
+            </Menu>
+            <View class="flex-1" />
             <Button
               onPress={() => void submit()}
               disabled={!canSend()}

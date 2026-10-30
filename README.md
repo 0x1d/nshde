@@ -12,7 +12,7 @@
 - **NSH app shell** — Zed-style `DockArea`: agents on the left (sessions and conversation tabs), editor in the center, object tree on the right, runtime along the bottom. Collapsed panes leave an activity rail.
 - **Object tree** — components and files under `components/`, developed through nshde
 - **Code editor** — `nsh/base` `Editor` with syntax highlighting for TSX/JSON
-- **Agent panel** — Architect, Implementer, and Reviewer agents with `Tabs`, `TextView`, and chat-style composer
+- **Agent panel** — Architect, Implementer, and Reviewer, chosen from a menu on the composer, with `TextView` and a chat-style field
 - **Configurable storage** — `fs` (default, `.nshde-data/`), `memory`, or `s3` (AWS SDK hook; falls back to in-memory demo when creds are absent)
 - **Runtime loading** — `.nsh.tsx` modules compiled with Sucrase in a `/preview` sandbox; `.wasm` modules instantiated with host imports
 
@@ -125,7 +125,7 @@ The **IDE shell** is an NSH TSX app (`App.tsx`, `nsh run --target web`). The **B
    StorageProvider (fs | memory | s3)
 ```
 
-User modules in the preview still use a deliberate React sandbox today. The chrome uses NSH gallery components (`DockArea`, `Toolbar`, `Editor`, chat, `Tabs`, `Collapsible`).
+User modules in the preview still use a deliberate React sandbox today. The chrome uses NSH gallery components (`DockArea`, `Editor`, `Menu`, chat, `Collapsible`). This nsh 0.3.0 build has no `Toolbar` export, so the bars are rows of `Button`s.
 
 ## Relation to NSH
 

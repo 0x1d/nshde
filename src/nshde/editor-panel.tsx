@@ -1,23 +1,17 @@
-import { Text, View } from "nsh";
-import { Button, Editor, type EditorRef } from "nsh/base";
-import { IconSave } from "./icons";
+import { Text, token, untracked, View } from "nsh";
+import { Button, Editor } from "nsh/base";
 import {
   editorCache,
-  editorValue,
+  editorEpoch,
   isPathDirty,
   languageForPath,
-  loadingFile,
   onEditorValueChange,
   saveFile,
-  selectedPath,
 } from "./store";
 
 export function EditorPanelView(props: { path: string }) {
-  let editor: EditorRef | undefined;
-
-  const isActive = () => selectedPath() === props.path;
-  const showLoading = () => isActive() && loadingFile() && !editorCache()[props.path];
   const unsaved = () => isPathDirty(props.path);
+  const binary = () => props.path.endsWith(".wasm");
 
   return (
     <View class="flex-1 bg-background">
@@ -26,51 +20,46 @@ export function EditorPanelView(props: { path: string }) {
           {props.path}
         </Text>
         <Button
-          onPress={() => void saveFile()}
-          disabled={!isActive() || props.path.endsWith(".wasm") || !unsaved()}
+          onPress={() => void saveFile(props.path)}
+          disabled={binary() || !unsaved()}
           accessibilityLabel="Save file"
-          class="size-6 items-center justify-center rounded-md hover:bg-hover active:opacity-70 disabled:opacity-40"
+          class="h-6 flex-row items-center rounded-md px-1.5 hover:bg-hover active:opacity-70 disabled:opacity-40"
         >
-          <IconSave />
+          <Text
+            class={`text-[12px] font-medium ${unsaved() ? "" : "text-faint"}`}
+            style={unsaved() ? { color: token("warn") } : undefined}
+          >
+            Save
+          </Text>
         </Button>
       </View>
-      <View class="flex-1 bg-background">
-        <If when={showLoading()} else={<EditorBody path={props.path} editorRef={(r) => (editor = r)} />}>
-          <View class="flex-1 items-center justify-center">
-            <Text class="text-xs text-muted-foreground">Loading file…</Text>
-          </View>
-        </If>
-      </View>
+      <EditorBody path={props.path} />
     </View>
   );
 }
 
-function EditorBody(props: { path: string; editorRef: (ref: EditorRef) => void }) {
+function EditorBody(props: { path: string }) {
   return (
-    <View class="flex-1">
+    <View class="flex-1 bg-background">
       {() => {
-        const entry = editorCache()[props.path];
-        void (entry?.mountKey ?? 0);
-        const active = selectedPath() === props.path;
-        const value = active ? editorValue() : (entry?.value ?? "");
-        const readOnly = props.path.endsWith(".wasm");
-        if (!entry && !active) {
+        const epoch = editorEpoch()[props.path] ?? 0;
+        if (epoch === 0) {
           return (
             <View class="flex-1 items-center justify-center">
-              <Text class="text-xs text-muted-foreground">Not loaded</Text>
+              <Text class="text-xs text-muted-foreground">Loading file…</Text>
             </View>
           );
         }
+        const value = untracked(() => editorCache()[props.path]?.value ?? "");
         return (
           <Editor
-            ref={props.editorRef}
             defaultValue={value}
             language={languageForPath(props.path)}
             lineNumbers
             softWrap={false}
-            readOnly={readOnly}
-            onChange={({ value: next }) => {
-              if (!active) selectedPath.set(props.path);
+            readOnly={props.path.endsWith(".wasm")}
+            onChange={(next) => {
+              if (typeof next !== "string") return;
               onEditorValueChange(props.path, next);
             }}
             accessibilityLabel={props.path}
