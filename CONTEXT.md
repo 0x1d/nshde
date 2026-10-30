@@ -31,6 +31,7 @@ flowchart LR
 ## UI stack
 
 - **Shell**: NSH TSX entry `App.tsx` → `IdeApp` with `nsh/base` `DockArea`, `Editor`, `Tabs`, `Sheet`, `TextView`, `WebView` (gallery patterns).
+- **Dock chrome**: Side/bottom docks use `renderDock` for a full-width title row (label/icon left, collapse right). Dock panel tabs are visually hidden; collapse uses `toggleDockCollapsed` (28px rail, `open: true`).
 - **API bridge**: `host.js` + `src/nshde/api.ts` (`host.call` or `fetch` to port 43123).
 - **Dev**: `bun run dev:api` + `nsh run App.tsx --target web`.
 
