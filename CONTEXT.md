@@ -31,7 +31,7 @@ flowchart LR
 ## UI stack
 
 - **Shell**: NSH TSX entry `App.tsx` → `IdeApp` with `nsh/base` `DockArea`, `Editor`, `Tabs`, `TextView`, `WebView`, following `examples/gallery` Dock and AI Chat.
-- **Dock chrome**: Left and right docks use the gallery tab (`h-9`, brand underline) and a `renderDock` strip (uppercase title + Hide). Hide calls `toggleDock`. The title bar **Tree** / **Agents** buttons open them again.
+- **Dock chrome**: Left and right docks use the gallery tab (`h-9`, brand underline) and a `renderDock` strip (uppercase title + side-panel hide icon). The icon calls `toggleDock`. The title bar **Tree** / **Agents** buttons open them again.
 - **Runtime rail**: An open dock cannot be shorter than 100 points. Hiding the bottom dock closes it and leaves an external rail `TAB_RAIL` (36, the gallery tab height) showing the Runtime tab. Pressing that tab calls `setDockOpen("bottom", true)`.
 - **Agent panel**: The right dock's content follows the gallery AI chat: empty state, suggestion chips (they wrap in the dock), user bubbles, assistant `TextView` replies, a full-width `Segmented` agent switch, and a rounded composer with a round send button.
 - **API bridge**: `host.js` + `src/nshde/api.ts` (`host.call` or `fetch` to port 43123).
