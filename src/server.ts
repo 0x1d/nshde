@@ -7,8 +7,15 @@ import {
   handleStorageGet,
   handleStoragePost,
 } from "@/lib/api/http";
+import { resolveWebRoot, serveWebFile } from "@/lib/web-static";
 
 const port = Number(process.env.PORT) || 43123;
+const webRoot = resolveWebRoot();
+if (webRoot) {
+  console.log(`nshde web UI: ${webRoot}`);
+} else {
+  console.log("nshde web UI not packaged — run: nsh package . --target web");
+}
 
 function corsHeaders(): HeadersInit {
   return {
@@ -41,10 +48,6 @@ async function withCorsAsync(fn: (req: Request) => Response | Promise<Response>,
 const server = Bun.serve({
   port,
   routes: {
-    "/": new Response(
-      "nshde API — run the IDE with: nsh run App.tsx --target web (API on this port)\n",
-      { headers: { "Content-Type": "text/plain", ...corsHeaders() } },
-    ),
     "/preview": previewPage,
     "/preview/blank": previewPage,
     "/favicon.ico": Bun.file("public/favicon.ico"),
@@ -63,6 +66,25 @@ const server = Bun.serve({
       DELETE: (req) => withCorsAsync(handleStorageDelete, req),
       OPTIONS: () => new Response(null, { headers: corsHeaders() }),
     },
+  },
+  fetch(req) {
+    const url = new URL(req.url);
+    if (req.method !== "GET" && req.method !== "HEAD") {
+      return withCors(new Response("Method Not Allowed", { status: 405 }));
+    }
+    if (webRoot) {
+      const staticResponse = serveWebFile(webRoot, url.pathname);
+      if (staticResponse) return withCors(staticResponse);
+    }
+    if (url.pathname === "/") {
+      return withCors(
+        new Response(
+          "nshde API — run the IDE with: nsh run App.tsx --target web (API on this port)\n",
+          { headers: { "Content-Type": "text/plain; charset=utf-8" } },
+        ),
+      );
+    }
+    return withCors(new Response("Not Found", { status: 404 }));
   },
   development: process.env.NODE_ENV !== "production",
 });

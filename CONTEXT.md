@@ -34,7 +34,7 @@ flowchart LR
 - **Dock chrome**: Side/bottom docks use `renderDock` headers; **left/right collapse** closes the dock (`open: false`) and shows a **`w-7` (28px) rail** beside `DockArea`. **Bottom** uses a 28px-tall in-dock rail. Collapse state is **per dock** via `dockRailsCollapsed`.
 - **API bridge**: `host.js` + `src/nshde/api.ts` (`host.call` or `fetch` to port 43123).
 - **Dev**: `bun run dev:api` + `nsh run App.tsx --target web`.
-- **Production / Koyeb**: root `Dockerfile` (Bun 1.4+, matches `bun.lock` v2), `bun src/server.ts`, `PORT` from platform; use Dockerfile builder on Koyeb (not Node buildpacks).
+- **Production / Koyeb**: root `Dockerfile` (Bun 1.4+, matches `bun.lock` v2) installs `nsh`, runs `nsh package . --target web`, then `bun src/server.ts` serves the IDE and `/api/*` on `PORT`; use Dockerfile builder on Koyeb (not Node buildpacks).
 
 ## API surface
 

@@ -1,8 +1,12 @@
-/** Bridges NSH host calls to the Bun API (same machine in dev). */
+/** Bridges NSH host calls to the Bun API (split ports in dev, same origin when deployed). */
 function apiBase() {
   if (typeof location === "undefined") return "http://127.0.0.1:43123";
-  const port = 43123;
-  return `${location.protocol}//${location.hostname}:${port}`;
+  const { protocol, hostname, port, origin } = location;
+  if (port === "43123" || port === "") return origin;
+  if ((hostname === "127.0.0.1" || hostname === "localhost") && port !== "43123") {
+    return `${protocol}//${hostname}:43123`;
+  }
+  return origin;
 }
 
 async function fetchJson(path, init) {

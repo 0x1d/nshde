@@ -58,9 +58,11 @@ This app **cannot** use Koyeb’s default Node.js buildpacks: it depends on **Bu
 
 1. Push this repository (includes the root `Dockerfile`).
 2. Create or update the Koyeb Service with **Builder: Dockerfile** (not Buildpack).
-3. Leave the run command empty so the image `CMD` runs `bun src/server.ts`.
+3. Leave the run command empty so the image `CMD` runs `bun src/server.ts` (API + packaged NSH web UI on the same port).
 4. Set **`PORT`** if needed — Koyeb injects it automatically; the server reads `process.env.PORT`.
 5. Optional: `NSHDE_STORAGE=memory` on ephemeral instances (default `fs` uses `.nshde-data/` inside the container).
+
+The Docker build runs `nsh package . --target web` and serves `.nsh/out/nshde` at `/`. If you only see plain text asking you to run `nsh run App.tsx`, the image was built without the NSH bundle (redeploy with the Dockerfile builder, not API-only `bun start` on a buildpack).
 
 CLI example:
 
@@ -71,9 +73,16 @@ koyeb app init nshde \
   --git-builder docker
 ```
 
-Health check: HTTP on `/` or `/api/config`.
+Health check: HTTP on `/` (IDE when packaged) or `/api/config`.
 
-Package the NSH UI for static hosting:
+Local production smoke test:
+
+```bash
+bun run build:web
+bun run start
+```
+
+Package the NSH UI separately for static-only hosting (CDN without the Bun API):
 
 ```bash
 nsh package App.tsx --target web

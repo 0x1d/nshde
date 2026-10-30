@@ -9,10 +9,15 @@ export interface TreeNode {
   children?: TreeNode[];
 }
 
-const defaultBase = () =>
-  typeof location !== "undefined"
-    ? `${location.protocol}//${location.hostname}:43123`
-    : "http://127.0.0.1:43123";
+function defaultBase(): string {
+  if (typeof location === "undefined") return "http://127.0.0.1:43123";
+  const { protocol, hostname, port, origin } = location;
+  if (port === "43123" || port === "") return origin;
+  if ((hostname === "127.0.0.1" || hostname === "localhost") && port !== "43123") {
+    return `${protocol}//${hostname}:43123`;
+  }
+  return origin;
+}
 
 async function apiBase(): Promise<string> {
   if (host.available()) {
