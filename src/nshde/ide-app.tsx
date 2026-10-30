@@ -1,6 +1,6 @@
 import { Image, keymap, signal, Text, token, untracked, View, windowSize } from "nsh";
 import { Button, DockArea, type DockAreaLayout, type DockAreaRef } from "nsh/base";
-import logo from "../../assets/logo.svg";
+import logo from "../../assets/logo.png";
 import { AgentPanelView } from "./agent-panel";
 import {
   panelsAlongBottom,
@@ -240,7 +240,7 @@ export function IdeApp() {
   return (
     <View class="flex-1 bg-background">
       <View accessibilityLabel="Workspace" class="h-9 flex-row items-center gap-1 border-b border-line bg-inset px-2">
-        <Image src={logo} class="size-5" accessibilityLabel="nshde logo" />
+        <Image src={logo} class="size-6" accessibilityLabel="nshde logo" />
         <Text class="px-1 text-[13px] font-semibold tracking-tight text-foreground">nshde</Text>
         <View class="flex-1" />
         <If when={showStorage()}>
