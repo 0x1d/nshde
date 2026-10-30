@@ -1,3 +1,4 @@
+import { signal } from "nsh";
 import type { DockAreaLayout } from "nsh/base";
 
 export const FILE_PREFIX = "file:";
@@ -10,11 +11,18 @@ const DOCK_TITLES: Record<string, string> = {
   [SETTINGS_PANEL]: "Settings",
 };
 
-/** Collapsed rail width (NSH `DockArea` enforces at least 100pt on dock edges). */
-export const DOCK_RAIL_SIZE = 100;
+/** Icon-only rail width (matches `size-7` controls). */
+export const DOCK_ICON_RAIL = 28;
 
-/** Sizes at or below this show icon-only rail content, not the full panel. */
-export const DOCK_COLLAPSED_THRESHOLD = DOCK_RAIL_SIZE + 8;
+/** Drag-resize below this snaps to icon rail for that dock only. */
+export const DOCK_COLLAPSE_SNAP = 140;
+
+type DockPlacement = "left" | "right" | "bottom";
+
+const defaultCollapsed: Record<DockPlacement, boolean> = { left: false, right: false, bottom: false };
+
+/** Which docks are in icon-rail mode (independent per side). */
+export const dockRailsCollapsed = signal<Record<DockPlacement, boolean>>({ ...defaultCollapsed });
 
 export function filePanelId(path: string): string {
   return `${FILE_PREFIX}${path}`;
@@ -46,42 +54,86 @@ const expandedDockSizes: Record<string, number> = { ...DOCK_DEFAULT_SIZE };
 
 export function toggleDockCollapsed(
   layout: DockAreaLayout,
-  placement: "left" | "right" | "bottom",
+  placement: DockPlacement,
   collapsed: boolean,
 ): DockAreaLayout {
   const region = layout[placement];
   if (!region) return layout;
+
   const current = region.size ?? DOCK_DEFAULT_SIZE[placement];
-  if (!collapsed && current > DOCK_COLLAPSED_THRESHOLD) {
+  if (!collapsed && current > DOCK_COLLAPSE_SNAP) {
     expandedDockSizes[placement] = current;
   }
-  const size = collapsed ? DOCK_RAIL_SIZE : expandedDockSizes[placement] ?? DOCK_DEFAULT_SIZE[placement];
+
+  dockRailsCollapsed.set({ ...dockRailsCollapsed(), [placement]: collapsed });
+
+  if (placement === "left" || placement === "right") {
+    if (collapsed) {
+      if (current > DOCK_COLLAPSE_SNAP) expandedDockSizes[placement] = current;
+      return { ...layout, [placement]: { ...region, open: false } };
+    }
+    return {
+      ...layout,
+      [placement]: {
+        ...region,
+        open: true,
+        size: expandedDockSizes[placement] ?? DOCK_DEFAULT_SIZE[placement],
+      },
+    };
+  }
+
+  const size = collapsed ? DOCK_ICON_RAIL : expandedDockSizes[placement] ?? DOCK_DEFAULT_SIZE[placement];
   return {
     ...layout,
     [placement]: { ...region, open: true, size },
   };
 }
 
-export function isDockCollapsed(layout: DockAreaLayout | undefined, placement: "left" | "right" | "bottom"): boolean {
-  const region = layout?.[placement];
-  if (!region || region.open === false) return true;
-  return (region.size ?? 0) <= DOCK_COLLAPSED_THRESHOLD;
+export function isDockCollapsed(_layout: DockAreaLayout | undefined, placement: DockPlacement): boolean {
+  const region = _layout?.[placement];
+  if (region?.open === false) return true;
+  return dockRailsCollapsed()[placement];
 }
 
-/** Keep programmatic collapse and resize-handle snaps aligned with NSH minimum dock size. */
+/** Snap resize-handle drags per dock; never collapse a side unless that side's size warrants it. */
 export function normalizeDockLayout(layout: DockAreaLayout): DockAreaLayout {
   let next = layout;
-  for (const placement of ["left", "right", "bottom"] as const) {
+  const flags = { ...dockRailsCollapsed() };
+
+  for (const placement of ["left", "right"] as const) {
     const region = next[placement];
-    if (!region || region.open === false) continue;
+    if (!region) continue;
+
     const size = region.size ?? DOCK_DEFAULT_SIZE[placement];
-    if (size <= DOCK_COLLAPSED_THRESHOLD) {
-      next = {
-        ...next,
-        [placement]: { ...region, open: true, size: DOCK_RAIL_SIZE },
-      };
+
+    if (size > DOCK_COLLAPSE_SNAP) {
+      flags[placement] = false;
+    } else if (size <= DOCK_COLLAPSE_SNAP) {
+      flags[placement] = true;
+      if (size > DOCK_ICON_RAIL) expandedDockSizes[placement] = size;
+    }
+
+    if (flags[placement]) {
+      next = { ...next, [placement]: { ...region, open: false } };
+    } else {
+      next = { ...next, [placement]: { ...region, open: true } };
     }
   }
+
+  const bottom = next.bottom;
+  if (bottom && bottom.open !== false) {
+    const size = bottom.size ?? DOCK_DEFAULT_SIZE.bottom;
+    if (size > DOCK_COLLAPSE_SNAP) {
+      flags.bottom = false;
+    } else if (size <= DOCK_COLLAPSE_SNAP) {
+      flags.bottom = true;
+    }
+    if (flags.bottom) {
+      next = { ...next, bottom: { ...bottom, open: true, size: DOCK_ICON_RAIL } };
+    }
+  }
+
+  dockRailsCollapsed.set(flags);
   return next;
 }
 
