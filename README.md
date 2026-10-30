@@ -44,12 +44,34 @@ bun run dev
 
 Open the URL printed by `nsh run` (typically `http://127.0.0.1:8790/`). The API stays on port `43123` unless you set `PORT`.
 
-Production API build:
+Production API:
 
 ```bash
-bun run build
 bun run start
 ```
+
+(`bun run build` bundles to `dist/` for local experiments; production and Docker use `src/server.ts` so static paths like `public/` resolve correctly.)
+
+### Deploy on Koyeb
+
+This app **cannot** use Koyeb’s default Node.js buildpacks: it depends on **Bun** (`bun.lock`, no `package-lock.json`) and `Bun.serve`.
+
+1. Push this repository (includes the root `Dockerfile`).
+2. Create or update the Koyeb Service with **Builder: Dockerfile** (not Buildpack).
+3. Leave the run command empty so the image `CMD` runs `bun src/server.ts`.
+4. Set **`PORT`** if needed — Koyeb injects it automatically; the server reads `process.env.PORT`.
+5. Optional: `NSHDE_STORAGE=memory` on ephemeral instances (default `fs` uses `.nshde-data/` inside the container).
+
+CLI example:
+
+```bash
+koyeb app init nshde \
+  --git github.com/0x1d/nshde \
+  --git-branch main \
+  --git-builder docker
+```
+
+Health check: HTTP on `/` or `/api/config`.
 
 Package the NSH UI for static hosting:
 
