@@ -27,6 +27,20 @@ function walkPanels(node: DockNode, visit: (id: string) => void) {
   for (const child of node.children) walkPanels(child, visit);
 }
 
+/** Panels on the bottom edge of a layout node. A vertical split only counts its lowest visible child; a horizontal split counts every column. */
+export function panelsAlongBottom(node: DockNode | undefined, hidden: ReadonlySet<string> = new Set()): string[] {
+  if (!node) return [];
+  if (node.type === "tabs") return node.panels.filter((id) => !hidden.has(id));
+  if (node.axis === "vertical") {
+    for (let index = node.children.length - 1; index >= 0; index -= 1) {
+      const ids = panelsAlongBottom(node.children[index], hidden);
+      if (ids.length) return ids;
+    }
+    return [];
+  }
+  return node.children.flatMap((child) => panelsAlongBottom(child, hidden));
+}
+
 /** Whether a dock still holds `id` (a closed dock keeps its panels). */
 export function dockHasPanel(layout: DockAreaLayout | undefined, placement: DockPlacement, id: string): boolean {
   const region = layout?.[placement];
@@ -128,7 +142,25 @@ function placeAgentPanel(node: DockNode, panelId: string): DockNode {
 
 export function initialIdeLayout(welcomePath: string): DockAreaLayout {
   return {
-    center: { type: "tabs", panels: [filePanelId(welcomePath)], activeIndex: 0 },
+    // Explorer and Runtime each have a group beside them, so those tabs can
+    // leave the way Sessions can. A group that is the only child of a dock cannot.
+    center: {
+      type: "split",
+      axis: "horizontal",
+      sizes: [800, 248],
+      children: [
+        {
+          type: "split",
+          axis: "vertical",
+          sizes: [800, 220],
+          children: [
+            { type: "tabs", panels: [filePanelId(welcomePath)], activeIndex: 0 },
+            { type: "tabs", panels: ["runtime"], activeIndex: 0 },
+          ],
+        },
+        { type: "tabs", panels: ["tree"], activeIndex: 0 },
+      ],
+    },
     left: {
       layout: {
         type: "split",
@@ -139,20 +171,34 @@ export function initialIdeLayout(welcomePath: string): DockAreaLayout {
       size: 520,
       open: true,
     },
-    right: { layout: { type: "tabs", panels: ["tree"] }, size: 248, open: true },
-    bottom: { layout: { type: "tabs", panels: ["runtime"] }, size: 220, open: true },
   };
 }
 
-type TabGroup = Extract<DockAreaLayout["center"], { type: "tabs" }>;
+type TabGroup = Extract<DockNode, { type: "tabs" }>;
 
-function centerEditorTabs(center: DockAreaLayout["center"]): TabGroup | null {
-  if (center.type === "tabs") return center;
-  if (center.type === "split" && center.axis === "vertical") {
-    const first = center.children[0];
-    if (first?.type === "tabs") return first;
+function isToolGroup(node: TabGroup): boolean {
+  return node.panels.length > 0 && node.panels.every((id) => id === "runtime" || id === "tree");
+}
+
+function centerEditorTabs(center: DockNode): TabGroup | null {
+  if (center.type === "tabs") return isToolGroup(center) ? null : center;
+  for (const child of center.children) {
+    const found = centerEditorTabs(child);
+    if (found) return found;
   }
   return null;
+}
+
+function updateEditorGroup(node: DockNode, update: (group: TabGroup) => TabGroup): DockNode {
+  if (node.type === "tabs") return isToolGroup(node) ? node : update(node);
+  let done = false;
+  const children = node.children.map((child) => {
+    if (done) return child;
+    const next = updateEditorGroup(child, update);
+    if (next !== child) done = true;
+    return next;
+  });
+  return done ? ({ ...node, children } as DockNode) : node;
 }
 
 export function collectCenterPanelIds(layout: DockAreaLayout | undefined): string[] {
@@ -172,24 +218,11 @@ export function collectCenterPanelIds(layout: DockAreaLayout | undefined): strin
 }
 
 export function addCenterTab(layout: DockAreaLayout, panelId: string): DockAreaLayout {
-  const center = layout.center;
-  if (center.type === "tabs") {
-    const panels = center.panels.includes(panelId) ? center.panels : [...center.panels, panelId];
-    const activeIndex = panels.indexOf(panelId);
-    return { ...layout, center: { ...center, panels, activeIndex } };
-  }
-  if (center.type === "split" && center.axis === "vertical") {
-    const editorGroup = center.children[0];
-    if (editorGroup.type !== "tabs") return layout;
-    const panels = editorGroup.panels.includes(panelId) ? editorGroup.panels : [...editorGroup.panels, panelId];
-    const activeIndex = panels.indexOf(panelId);
-    const nextEditor: TabGroup = { ...editorGroup, panels, activeIndex };
-    return {
-      ...layout,
-      center: { ...center, children: [nextEditor, center.children[1]] as typeof center.children },
-    };
-  }
-  return layout;
+  const center = updateEditorGroup(layout.center, (group) => {
+    const panels = group.panels.includes(panelId) ? group.panels : [...group.panels, panelId];
+    return { ...group, panels, activeIndex: panels.indexOf(panelId) };
+  });
+  return { ...layout, center };
 }
 
 export function addFileTab(layout: DockAreaLayout, path: string): DockAreaLayout {
@@ -210,7 +243,7 @@ export function panelClosable(_id: string): boolean {
   return true;
 }
 
-export function defaultDockPanels(welcomePath: string): { id: string; closable: boolean }[] {
+export function defaultDockPanels(welcomePath: string): { id: string; closable: boolean; visible?: boolean }[] {
   return [
     { id: "tree", closable: true },
     { id: "runtime", closable: true },

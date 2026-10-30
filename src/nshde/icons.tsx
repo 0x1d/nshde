@@ -1,5 +1,5 @@
 import type { JSX } from "nsh";
-import { Text, View } from "nsh";
+import { Text, token, View } from "nsh";
 import { Button, Tooltip } from "nsh/base";
 
 const iconBtn =
@@ -72,39 +72,44 @@ export function IconChevron(props: { open?: boolean }) {
   );
 }
 
-/** Activity-bar robot. White while the agents dock is closed, brand while it is open. */
+/** White while the dock is closed, brand while it is open. Read in each mark so the color follows the open state. */
+function railInk(active?: boolean) {
+  return active ? token("brand") : token("foreground");
+}
+
+/** Activity-bar robot. */
 export function IconRobot(props: { active?: boolean }) {
-  const ink = props.active ? "bg-brand" : "bg-foreground";
-  const line = props.active ? "border-brand" : "border-foreground";
   return (
     <View class="h-4 w-4 items-center justify-end">
-      <View class={`h-1 w-px ${ink}`} />
-      <View class={`h-[9px] w-[13px] items-center justify-center rounded-[3px] border ${line}`}>
+      <View class="h-1 w-px" style={{ backgroundColor: railInk(props.active) }} />
+      <View
+        class="h-[9px] w-[13px] items-center justify-center rounded-[3px] border"
+        style={{ borderColor: railInk(props.active) }}
+      >
         <View class="flex-row gap-[3px]">
-          <View class={`size-[3px] rounded-full ${ink}`} />
-          <View class={`size-[3px] rounded-full ${ink}`} />
+          <View class="size-[3px] rounded-full" style={{ backgroundColor: railInk(props.active) }} />
+          <View class="size-[3px] rounded-full" style={{ backgroundColor: railInk(props.active) }} />
         </View>
       </View>
     </View>
   );
 }
 
-/** Activity-bar tree: a trunk and two branches. Same active color as the robot. */
+/** Activity-bar tree: a trunk and two branches. */
 export function IconTree(props: { active?: boolean }) {
-  const ink = props.active ? "bg-brand" : "bg-foreground";
   return (
     <View class="h-4 w-4 justify-center gap-[3px]">
       <View class="h-1 flex-row items-center gap-0.5">
-        <View class={`size-1 rounded-[1px] ${ink}`} />
-        <View class={`h-px min-w-0 flex-1 ${ink}`} />
+        <View class="size-1 rounded-[1px]" style={{ backgroundColor: railInk(props.active) }} />
+        <View class="h-px min-w-0 flex-1" style={{ backgroundColor: railInk(props.active) }} />
       </View>
       <View class="h-1 flex-row items-center gap-0.5 pl-1.5">
-        <View class={`size-1 rounded-[1px] ${ink}`} />
-        <View class={`h-px min-w-0 flex-1 ${ink}`} />
+        <View class="size-1 rounded-[1px]" style={{ backgroundColor: railInk(props.active) }} />
+        <View class="h-px min-w-0 flex-1" style={{ backgroundColor: railInk(props.active) }} />
       </View>
       <View class="h-1 flex-row items-center gap-0.5 pl-1.5">
-        <View class={`size-1 rounded-[1px] ${ink}`} />
-        <View class={`h-px min-w-0 flex-1 ${ink}`} />
+        <View class="size-1 rounded-[1px]" style={{ backgroundColor: railInk(props.active) }} />
+        <View class="h-px min-w-0 flex-1" style={{ backgroundColor: railInk(props.active) }} />
       </View>
     </View>
   );
