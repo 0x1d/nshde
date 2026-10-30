@@ -74,6 +74,51 @@ export function IconChevron(props: { open?: boolean }) {
   return <Text class="w-3 text-center text-[10px] text-faint">{props.open ? "▾" : "▸"}</Text>;
 }
 
+/** Side panel glyph for dock hide (gallery-style line icon). */
+export function IconSidePanel(props: { edge: "left" | "right" | "bottom" }) {
+  if (props.edge === "bottom") {
+    return (
+      <View class="h-3 w-4 flex-col justify-end">
+        <View class="min-h-[6px] flex-1 rounded-t-sm border border-b-0 border-muted-foreground" />
+        <View class="h-px bg-foreground" />
+      </View>
+    );
+  }
+  if (props.edge === "left") {
+    return (
+      <View class="h-4 w-3 flex-row">
+        <View class="w-px bg-foreground" />
+        <View class="flex-1 rounded-r-sm border border-l-0 border-muted-foreground" />
+      </View>
+    );
+  }
+  return (
+    <View class="h-4 w-3 flex-row">
+      <View class="flex-1 rounded-l-sm border border-r-0 border-muted-foreground" />
+      <View class="w-px bg-foreground" />
+    </View>
+  );
+}
+
+export function TipIconButton(props: {
+  label: string;
+  onPress?: () => void;
+  children: JSX.Element;
+  class?: string;
+}) {
+  return (
+    <View tooltip={<Tip label={props.label} />}>
+      <Button
+        onPress={props.onPress}
+        accessibilityLabel={props.label}
+        class={props.class ?? "size-6 items-center justify-center rounded-md hover:bg-hover active:opacity-70"}
+      >
+        {props.children}
+      </Button>
+    </View>
+  );
+}
+
 export function TipTextButton(props: {
   label: string;
   onPress?: () => void;

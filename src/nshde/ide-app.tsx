@@ -6,7 +6,7 @@ import logo from "../../assets/logo.svg";
 import { AgentPanelView } from "./agent-panel";
 import { dockHasPanel, pathFromFilePanel, SETTINGS_PANEL, TAB_RAIL, tabTitle } from "./dock-layout";
 import { EditorPanelView } from "./editor-panel";
-import { IconClose, TipTextButton } from "./icons";
+import { IconClose, IconSidePanel, TipIconButton, TipTextButton } from "./icons";
 import { ObjectTreePanelView } from "./object-tree-panel";
 import { RuntimePanelView } from "./runtime-panel";
 import { SettingsPanelView } from "./settings-panel";
@@ -181,13 +181,12 @@ export function IdeApp() {
                   <Text class="flex-1 text-[11px] font-semibold uppercase tracking-wider text-faint">
                     {DOCKS[dock.placement] ?? dock.placement}
                   </Text>
-                  <Button
+                  <TipIconButton
+                    label={`Hide ${DOCKS[dock.placement] ?? dock.placement}`}
                     onPress={() => area.toggleDock(dock.placement)}
-                    accessibilityLabel={`Hide ${DOCKS[dock.placement] ?? dock.placement}`}
-                    class="rounded-md px-2 py-0.5 hover:bg-hover active:opacity-70"
                   >
-                    <Text class="text-xs font-medium text-muted-foreground">Hide</Text>
-                  </Button>
+                    <IconSidePanel edge={dock.placement} />
+                  </TipIconButton>
                 </View>
               )}
               renderTab={(tab) => {
