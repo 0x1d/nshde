@@ -57,15 +57,6 @@ export function IconLive(props: { active?: boolean }) {
   );
 }
 
-export function IconSave() {
-  return (
-    <View class="size-3 gap-[1px]">
-      <View class="h-1.5 rounded-[1px] border border-foreground" />
-      <View class="h-[2px] rounded-sm bg-foreground" />
-    </View>
-  );
-}
-
 export function IconClose() {
   return <Text class="text-[14px] leading-none text-muted-foreground">×</Text>;
 }
@@ -78,6 +69,44 @@ export function IconChevron(props: { open?: boolean }) {
     >
       ›
     </Text>
+  );
+}
+
+/** Activity-bar robot. White while the agents dock is closed, brand while it is open. */
+export function IconRobot(props: { active?: boolean }) {
+  const ink = props.active ? "bg-brand" : "bg-foreground";
+  const line = props.active ? "border-brand" : "border-foreground";
+  return (
+    <View class="h-4 w-4 items-center justify-end">
+      <View class={`h-1 w-px ${ink}`} />
+      <View class={`h-[9px] w-[13px] items-center justify-center rounded-[3px] border ${line}`}>
+        <View class="flex-row gap-[3px]">
+          <View class={`size-[3px] rounded-full ${ink}`} />
+          <View class={`size-[3px] rounded-full ${ink}`} />
+        </View>
+      </View>
+    </View>
+  );
+}
+
+/** Activity-bar tree: a trunk and two branches. Same active color as the robot. */
+export function IconTree(props: { active?: boolean }) {
+  const ink = props.active ? "bg-brand" : "bg-foreground";
+  return (
+    <View class="h-4 w-4 justify-center gap-[3px]">
+      <View class="h-1 flex-row items-center gap-0.5">
+        <View class={`size-1 rounded-[1px] ${ink}`} />
+        <View class={`h-px min-w-0 flex-1 ${ink}`} />
+      </View>
+      <View class="h-1 flex-row items-center gap-0.5 pl-1.5">
+        <View class={`size-1 rounded-[1px] ${ink}`} />
+        <View class={`h-px min-w-0 flex-1 ${ink}`} />
+      </View>
+      <View class="h-1 flex-row items-center gap-0.5 pl-1.5">
+        <View class={`size-1 rounded-[1px] ${ink}`} />
+        <View class={`h-px min-w-0 flex-1 ${ink}`} />
+      </View>
+    </View>
   );
 }
 

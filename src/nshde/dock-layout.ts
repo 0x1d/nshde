@@ -200,15 +200,21 @@ export function openSettingsTab(layout: DockAreaLayout): DockAreaLayout {
   return addCenterTab(layout, SETTINGS_PANEL);
 }
 
-export function panelClosable(id: string): boolean {
+/** A close button. Tool panes stay open so they can still be dragged to another group. */
+export function tabShowsClose(id: string): boolean {
   return id === SETTINGS_PANEL || sessionIdFromPanel(id) !== null || pathFromFilePanel(id) !== null;
+}
+
+/** Every pane can leave its group. DockArea only drags a panel whose options say it is closable. */
+export function panelClosable(_id: string): boolean {
+  return true;
 }
 
 export function defaultDockPanels(welcomePath: string): { id: string; closable: boolean }[] {
   return [
-    { id: "tree", closable: false },
-    { id: "runtime", closable: false },
-    { id: SESSIONS_PANEL, closable: false },
+    { id: "tree", closable: true },
+    { id: "runtime", closable: true },
+    { id: SESSIONS_PANEL, closable: true },
     { id: agentPanelId(DEFAULT_SESSION_ID), closable: true },
     { id: filePanelId(welcomePath), closable: true },
   ];
