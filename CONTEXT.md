@@ -30,10 +30,10 @@ flowchart LR
 
 ## UI stack
 
-- **Shell**: NSH TSX entry `App.tsx` → `IdeApp` with `nsh/base` `DockArea`, `Editor`, `Tabs`, `TextView`, `WebView`, following `examples/gallery` Dock and AI Chat.
-- **Dock chrome**: Left and right docks use the gallery tab (`h-9`, brand underline) and a `renderDock` strip (uppercase title + side-panel hide icon). The icon calls `toggleDock`. The title bar **Tree** / **Agents** buttons open them again.
-- **Runtime rail**: An open dock cannot be shorter than 100 points. Hiding the bottom dock closes it and leaves an external rail `TAB_RAIL` (36, the gallery tab height) showing the Runtime tab. Pressing that tab calls `setDockOpen("bottom", true)`.
-- **Agent panel**: The right dock's content follows the gallery AI chat: empty state, suggestion chips (they wrap in the dock), user bubbles, assistant `TextView` replies, a full-width `Segmented` agent switch, and a rounded composer with a round send button.
+- **Shell**: NSH TSX entry `App.tsx` → `IdeApp`. Flat workspace: a title toolbar of `Button`s, activity rails, `DockArea`, status bar. This `nsh` 0.3.0 build exports `DockArea`, `Collapsible`, `Editor`, `Tabs`, and `TextView`. `Toolbar` and `Toggle` are on nsh.dev but not in this binary, so the bars are rows of `Button`s with `selected`.
+- **Docks**: Agents on the left, Explorer (object tree) on the right, Runtime on the bottom. Editor tabs use a top edge on the active tab. `mod+b` toggles agents, `mod+j` toggles runtime, `mod+s` saves.
+- **Collapse**: An open dock cannot be shorter than 100 points, so closing one does not shrink it to a strip inside `DockArea`. Side docks leave the activity rail (Agents / Explorer). Runtime leaves an `h-9` tab strip. The title-bar layout glyphs (left, bottom, right) track the same open state.
+- **Agent dock**: A horizontal split. The session list is the gallery chat sidebar (new session, then the list). Each session is a tab in the conversation group, with the gallery composer: empty state, suggestion chips, segmented agent switch, rounded field.
 - **API bridge**: `host.js` + `src/nshde/api.ts` (`host.call` or `fetch` to port 43123).
 - **Dev**: `bun run dev:api` + `nsh run App.tsx --target web`.
 - **Production / Koyeb**: root `Dockerfile` (Bun 1.4+, matches `bun.lock` v2) installs `nsh`, runs `nsh package . --target web`, then `bun src/server.ts` serves the IDE and `/api/*` on `PORT`; use Dockerfile builder on Koyeb (not Node buildpacks).

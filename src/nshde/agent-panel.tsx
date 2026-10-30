@@ -3,13 +3,16 @@ import { Button, Input, TextView } from "nsh/base";
 import type { AgentDefinition, AgentId, AgentMessage } from "../lib/agents";
 import { generateModule, listAgents } from "./api";
 import { Segmented } from "./segmented";
-import { handleModuleGenerated } from "./store";
+import { handleModuleGenerated, patchSession, sessions } from "./store";
 
 const PROMPTS = [
   { label: "Todo list", text: "Build a todo list module" },
   { label: "Metrics chart", text: "Create a metrics chart" },
   { label: "Status card", text: "Create a status card with a title and a metric" },
 ] as const;
+
+const catalog = signal<AgentDefinition[]>([]);
+let catalogStarted = false;
 
 function readInput(value: unknown): string {
   if (typeof value === "string") return value;
@@ -18,6 +21,11 @@ function readInput(value: unknown): string {
     return typeof next === "string" ? next : "";
   }
   return "";
+}
+
+function clipTitle(text: string): string {
+  const line = text.replace(/\s+/g, " ").trim();
+  return line.length > 42 ? `${line.slice(0, 42)}…` : line;
 }
 
 function Spinner() {
@@ -47,27 +55,36 @@ function Avatar() {
   );
 }
 
-export function AgentPanelView() {
-  const agents = signal<AgentDefinition[]>([]);
+export function AgentPanelView(props: { sessionId: string }) {
+  const session = () => sessions().find((item) => item.id === props.sessionId);
+  return (
+    <If when={session()} else={<View class="flex-1 bg-background" />}>
+      {() => <Conversation sessionId={props.sessionId} />}
+    </If>
+  );
+}
+
+function Conversation(props: { sessionId: string }) {
+  const current = () => sessions().find((item) => item.id === props.sessionId)!;
   const activeAgent = signal<AgentId>("implementer");
   const prompt = signal("");
   const inputHeight = signal(20);
-  const messages = signal<AgentMessage[]>([]);
-  const loading = signal(false);
 
   effect(() => {
+    if (catalogStarted) return;
+    catalogStarted = true;
     void listAgents()
-      .then((list) => agents.set(list))
-      .catch(() => agents.set([]));
+      .then((list) => catalog.set(list))
+      .catch(() => catalog.set([]));
   });
 
-  const activeMeta = () => agents().find((agent) => agent.id === activeAgent());
-  const canSend = () => !!(prompt() ?? "").trim() && !loading();
+  const activeMeta = () => catalog().find((agent) => agent.id === activeAgent());
+  const canSend = () => !!(prompt() ?? "").trim() && !current().loading;
 
   async function submit(raw?: string) {
+    const session = current();
     const text = (raw ?? prompt() ?? "").trim();
-    if (!text || loading()) return;
-    loading.set(true);
+    if (!text || session.loading) return;
     const userMsg: AgentMessage = {
       id: crypto.randomUUID(),
       agentId: activeAgent(),
@@ -76,18 +93,27 @@ export function AgentPanelView() {
       timestamp: new Date().toISOString(),
     };
     batch(() => {
-      messages.set([...messages(), userMsg]);
+      patchSession(props.sessionId, {
+        messages: [...session.messages, userMsg],
+        title: session.messages.length === 0 ? clipTitle(text) : session.title,
+        loading: true,
+      });
       prompt.set("");
       inputHeight.set(20);
     });
 
     try {
       const data = await generateModule(text, activeAgent());
-      messages.set([...messages(), ...data.messages]);
+      const latest = sessions().find((item) => item.id === props.sessionId);
+      patchSession(props.sessionId, {
+        messages: [...(latest?.messages ?? []), ...data.messages],
+        loading: false,
+      });
       if (data.generatedPath && data.source) {
         handleModuleGenerated(data.generatedPath, data.source);
       }
     } catch (error) {
+      const latest = sessions().find((item) => item.id === props.sessionId);
       const fail: AgentMessage = {
         id: crypto.randomUUID(),
         agentId: activeAgent(),
@@ -95,11 +121,15 @@ export function AgentPanelView() {
         content: error instanceof Error ? error.message : "Something went wrong.",
         timestamp: new Date().toISOString(),
       };
-      messages.set([...messages(), fail]);
-    } finally {
-      loading.set(false);
+      patchSession(props.sessionId, {
+        messages: [...(latest?.messages ?? []), fail],
+        loading: false,
+      });
     }
   }
+
+  const messages = () => current().messages;
+  const loading = () => current().loading;
 
   return (
     <View class="flex-1 bg-background">
@@ -112,7 +142,7 @@ export function AgentPanelView() {
                 {(msg) => (
                   <MessageRow
                     msg={msg()}
-                    agentName={agents().find((agent) => agent.id === msg().agentId)?.name ?? msg().agentId}
+                    agentName={catalog().find((agent) => agent.id === msg().agentId)?.name ?? msg().agentId}
                   />
                 )}
               </Each>
@@ -133,12 +163,12 @@ export function AgentPanelView() {
             </Scroll>
           }
         >
-          <View class="flex-1 items-center justify-center gap-3 px-4 py-6">
-            <View class="size-14 items-center justify-center rounded-2xl border border-border bg-raised">
-              <Text class="text-2xl text-brand">✦</Text>
+          <View class="flex-1 items-center justify-center gap-2 px-4 py-6">
+            <View class="size-10 items-center justify-center rounded-xl border border-border bg-raised">
+              <Text class="text-lg text-brand">✦</Text>
             </View>
-            <Text class="text-[22px] font-semibold text-foreground">How can I help?</Text>
-            <Text class="text-center text-[15px] leading-[21px] text-muted-foreground">
+            <Text class="text-lg font-semibold text-foreground">How can I help?</Text>
+            <Text class="text-center text-[13px] leading-5 text-muted-foreground">
               Describe a module. The agent writes it and opens it in the editor.
             </Text>
           </View>
@@ -153,7 +183,7 @@ export function AgentPanelView() {
                 onPress={() => void submit(chip().text)}
                 disabled={loading()}
                 accessibilityLabel={chip().label}
-                class="h-9 justify-center rounded-full border border-border bg-card px-3.5 active:opacity-80 disabled:opacity-40"
+                class="h-8 justify-center rounded-full border border-border bg-card px-3 active:opacity-80 disabled:opacity-40"
               >
                 <Text class="text-[13px] font-medium text-foreground">{chip().label}</Text>
               </Button>
@@ -163,7 +193,7 @@ export function AgentPanelView() {
       </If>
 
       <View class="gap-2 px-3 pb-3 pt-1">
-        <View class="gap-1.5 rounded-3xl border border-border bg-card p-1.5">
+        <View class="gap-1.5 rounded-2xl border border-border bg-card p-1.5">
           <Input
             value={prompt()}
             onChange={(value) => prompt.set(readInput(value))}
@@ -178,12 +208,12 @@ export function AgentPanelView() {
               const height = size && typeof size === "object" && "height" in size ? size.height : 20;
               inputHeight.set(Math.min(100, Math.max(20, height)));
             }}
-            class="px-2.5 py-2.5 text-[15px] leading-5 text-foreground placeholder:text-muted-foreground"
-            style={{ height: inputHeight() + 20 }}
+            class="px-2.5 py-2 text-[13px] leading-5 text-foreground placeholder:text-muted-foreground"
+            style={{ height: inputHeight() + 16 }}
           />
-          <If when={agents().length > 0}>
+          <If when={catalog().length > 0}>
             <Segmented
-              options={agents().map((agent) => ({ value: agent.id, label: agent.name }))}
+              options={catalog().map((agent) => ({ value: agent.id, label: agent.name }))}
               value={activeAgent()}
               onChange={(id) => activeAgent.set(id)}
             />
@@ -193,9 +223,9 @@ export function AgentPanelView() {
               onPress={() => void submit()}
               disabled={!canSend()}
               accessibilityLabel="Send"
-              class="size-11 items-center justify-center rounded-full bg-brand disabled:opacity-35 active:opacity-90"
+              class="size-8 items-center justify-center rounded-full bg-brand disabled:opacity-35 active:opacity-90"
             >
-              <Text class="text-base font-semibold text-background">↑</Text>
+              <Text class="text-sm font-semibold text-background">↑</Text>
             </Button>
           </View>
         </View>
@@ -208,8 +238,8 @@ function MessageRow(props: { msg: AgentMessage; agentName?: string }) {
   if (props.msg.role === "user") {
     return (
       <View class="items-end px-4 py-2">
-        <View class="max-w-[82%] rounded-[20px] rounded-br-md border border-border bg-raised px-3.5 py-2.5">
-          <Text class="text-[15px] leading-[21px] text-foreground">{props.msg.content}</Text>
+        <View class="max-w-[82%] rounded-[18px] rounded-br-md border border-border bg-raised px-3 py-2">
+          <Text class="text-[13px] leading-5 text-foreground">{props.msg.content}</Text>
         </View>
       </View>
     );
@@ -217,7 +247,7 @@ function MessageRow(props: { msg: AgentMessage; agentName?: string }) {
 
   const name = props.agentName ?? props.msg.agentId;
   return (
-    <View class="gap-3 px-4 pb-1 pt-2">
+    <View class="gap-2 px-4 pb-1 pt-2">
       <View class="h-[26px] flex-row items-center gap-2">
         <Avatar />
         <Text class="flex-1 text-[13px] font-semibold text-muted-foreground">{name}</Text>
@@ -226,10 +256,10 @@ function MessageRow(props: { msg: AgentMessage; agentName?: string }) {
         markdown={props.msg.content}
         selectable
         styles={{
-          root: { gap: 12, fontSize: 15, lineHeight: 22, color: token("foreground") },
-          heading1: { fontSize: 20, lineHeight: 26 },
-          heading2: { fontSize: 17, lineHeight: 22 },
-          heading3: { fontSize: 15, lineHeight: 22 },
+          root: { gap: 12, fontSize: 13, lineHeight: 20, color: token("foreground") },
+          heading1: { fontSize: 18, lineHeight: 24 },
+          heading2: { fontSize: 16, lineHeight: 22 },
+          heading3: { fontSize: 14, lineHeight: 20 },
           code: { color: token("code") },
           codeBlockCode: { color: token("code") },
           link: { color: token("brand") },

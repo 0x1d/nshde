@@ -22,26 +22,41 @@ test("shows the nshde shell", async () => {
   expect(app.texts().join(" ")).toMatch(/nshde/);
 });
 
-test("left and right docks match the gallery, and the runtime collapses to the tab rail", async () => {
+test("agents sit on the left, the explorer on the right, and a collapsed pane leaves its rail", async () => {
   const app = await open("./App.tsx", { width: 1280, height: 800, platform: "web", network });
   const text = () => app.texts().join("\n");
-  expect(text()).toMatch(/Object tree/);
-  expect(text()).toMatch(/Agents/);
+
+  expect(text()).toMatch(/New agent/);
   expect(text()).toMatch(/How can I help/);
-  expect(app.shows("Hide Runtime")).toBe(true);
-  expect(text()).toMatch(/RUNTIME/);
+  expect(text()).toMatch(/Sessions/);
+  expect(text()).toMatch(/Explorer/);
+  expect(text()).toMatch(/No components yet/);
+  expect(app.shows("Agents")).toBe(true);
+  expect(app.shows("Expand runtime")).toBe(false);
 
-  await app.press("Hide Runtime");
-  expect(app.shows("Expand runtime preview")).toBe(true);
-  expect(text()).not.toMatch(/RUNTIME/);
+  await app.press("Toggle runtime");
+  expect(app.shows("Expand runtime")).toBe(true);
   expect(text()).toMatch(/Runtime/);
+  expect(text()).toMatch(/How can I help/);
 
-  await app.press("Expand runtime preview");
-  expect(text()).toMatch(/RUNTIME/);
-  expect(app.shows("Expand runtime preview")).toBe(false);
+  await app.press("Expand runtime");
+  expect(app.shows("Expand runtime")).toBe(false);
 
-  await app.press("Hide Object tree");
-  expect(app.shows("Object tree")).toBe(false);
-  await app.press("Toggle object tree");
-  expect(app.shows("Object tree")).toBe(true);
+  await app.press("Toggle agents");
+  expect(text()).not.toMatch(/How can I help/);
+  expect(app.shows("Agents")).toBe(true);
+  expect(text()).toMatch(/No components yet/);
+
+  await app.press("Agents");
+  expect(text()).toMatch(/How can I help/);
+
+  await app.press("Toggle explorer");
+  expect(text()).not.toMatch(/No components yet/);
+  expect(app.shows("Explorer")).toBe(true);
+
+  await app.press("Explorer");
+  expect(text()).toMatch(/No components yet/);
+
+  await app.press("New agent");
+  expect(text()).toMatch(/New agent/);
 });

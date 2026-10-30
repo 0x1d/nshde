@@ -1,6 +1,6 @@
 import { Text, View } from "nsh";
-import { Editor, type EditorRef } from "nsh/base";
-import { IconButton, IconSave } from "./icons";
+import { Button, Editor, type EditorRef } from "nsh/base";
+import { IconSave } from "./icons";
 import {
   editorCache,
   editorValue,
@@ -20,17 +20,21 @@ export function EditorPanelView(props: { path: string }) {
   const unsaved = () => isPathDirty(props.path);
 
   return (
-    <View class="flex-1 bg-card">
-      <View class="h-7 flex-row items-center justify-end gap-0.5 border-b border-line px-1.5">
-        <IconButton
-          label="Save file (⌘S)"
-          disabled={!isActive() || props.path.endsWith(".wasm") || !unsaved()}
+    <View class="flex-1 bg-background">
+      <View accessibilityLabel="Editor" class="h-8 flex-row items-center gap-2 border-b border-line bg-inset px-3">
+        <Text numberOfLines={1} class="min-w-0 flex-1 font-mono text-[12px] text-muted-foreground">
+          {props.path}
+        </Text>
+        <Button
           onPress={() => void saveFile()}
+          disabled={!isActive() || props.path.endsWith(".wasm") || !unsaved()}
+          accessibilityLabel="Save file"
+          class="size-6 items-center justify-center rounded-md hover:bg-hover active:opacity-70 disabled:opacity-40"
         >
           <IconSave />
-        </IconButton>
+        </Button>
       </View>
-      <View class="flex-1 bg-inset">
+      <View class="flex-1 bg-background">
         <If when={showLoading()} else={<EditorBody path={props.path} editorRef={(r) => (editor = r)} />}>
           <View class="flex-1 items-center justify-center">
             <Text class="text-xs text-muted-foreground">Loading file…</Text>
