@@ -18,7 +18,7 @@
 
 ## Quick start
 
-Requires [Bun](https://bun.com/) 1.2+ and the [NSH CLI](https://nsh.dev/docs/installation).
+Requires [Bun](https://bun.com/) 1.4+ and the [NSH CLI](https://nsh.dev/docs/installation).
 
 **Install NSH** (if `bun run check:nsh` fails):
 
