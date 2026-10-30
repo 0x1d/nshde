@@ -5,7 +5,7 @@ import { platform, windowSize } from "nsh";
 import { Button, DockArea, type DockAreaLayout, type DockAreaRef } from "nsh/base";
 import logo from "../../assets/logo.svg";
 import { AgentPanelView } from "./agent-panel";
-import { isDockCollapsed, pathFromFilePanel, SETTINGS_PANEL, tabTitle, toggleDockCollapsed } from "./dock-layout";
+import { isDockCollapsed, normalizeDockLayout, pathFromFilePanel, SETTINGS_PANEL, tabTitle, toggleDockCollapsed } from "./dock-layout";
 import { EditorPanelView } from "./editor-panel";
 import {
   IconClose,
@@ -70,6 +70,52 @@ function parseLayoutChange(payload: unknown): DockAreaLayout | null {
   return null;
 }
 
+/** DockArea mounts `renderPanel` once per panel; collapse must react inside the panel. */
+function TreeDockPanel() {
+  const collapsed = () => isDockCollapsed(dockLayout(), "left");
+  const toggle = () =>
+    dockLayout.set(toggleDockCollapsed(dockLayout(), "left", !collapsed()));
+  return (
+    <If when={collapsed()} else={<ObjectTreePanelView />}>
+      <View class="flex-1 items-center overflow-hidden py-1">
+        <TipTextButton label="Expand object tree" onPress={toggle}>
+          <IconObjectTree3D />
+        </TipTextButton>
+      </View>
+    </If>
+  );
+}
+
+function AgentsDockPanel() {
+  const collapsed = () => isDockCollapsed(dockLayout(), "right");
+  const toggle = () =>
+    dockLayout.set(toggleDockCollapsed(dockLayout(), "right", !collapsed()));
+  return (
+    <If when={collapsed()} else={<AgentPanelView />}>
+      <View class="flex-1 items-center overflow-hidden py-1">
+        <TipTextButton label="Expand agents" onPress={toggle}>
+          <IconSidePanelRight />
+        </TipTextButton>
+      </View>
+    </If>
+  );
+}
+
+function RuntimeDockPanel() {
+  const collapsed = () => isDockCollapsed(dockLayout(), "bottom");
+  const toggle = () =>
+    dockLayout.set(toggleDockCollapsed(dockLayout(), "bottom", !collapsed()));
+  return (
+    <If when={collapsed()} else={<RuntimePanelView />}>
+      <View class="h-full items-center justify-center overflow-hidden">
+        <TipTextButton label="Expand runtime preview" onPress={toggle}>
+          <Text class="text-[10px] text-muted-foreground">Runtime</Text>
+        </TipTextButton>
+      </View>
+    </If>
+  );
+}
+
 export function IdeApp() {
   bootIdeData();
   const layout = dockLayout;
@@ -121,8 +167,9 @@ export function IdeApp() {
               class="flex-1"
               layout={layout()}
               onLayoutChange={(payload) => {
-                const next = parseLayoutChange(payload);
-                if (!next?.center) return;
+                const parsed = parseLayoutChange(payload);
+                if (!parsed?.center) return;
+                const next = normalizeDockLayout(parsed);
                 layout.set(next);
                 syncActiveEditorFromLayout(next);
               }}
@@ -130,7 +177,7 @@ export function IdeApp() {
               groupClass="flex-1 bg-inset"
               tabBarClass="flex-row w-full items-stretch border-b border-line"
               tabClass="group min-w-0"
-              contentClass="flex-1"
+              contentClass="flex-1 overflow-hidden"
               handleAccessibilityLabel="Resize panel"
               handleClass="basis-px bg-line"
               handleThumbClass={handleThumb}
@@ -253,42 +300,9 @@ export function IdeApp() {
                 </View>
               )}
               renderPanel={(panel) => {
-                if (panel.id === "tree") {
-                  if (isDockCollapsed(layout(), "left")) {
-                    return (
-                      <View class="flex-1 items-center py-1">
-                        <TipTextButton label="Expand object tree" onPress={collapseLeft}>
-                          <IconObjectTree3D />
-                        </TipTextButton>
-                      </View>
-                    );
-                  }
-                  return <ObjectTreePanelView />;
-                }
-                if (panel.id === "agents") {
-                  if (isDockCollapsed(layout(), "right")) {
-                    return (
-                      <View class="flex-1 items-center py-1">
-                        <TipTextButton label="Expand agents" onPress={collapseRight}>
-                          <IconSidePanelRight />
-                        </TipTextButton>
-                      </View>
-                    );
-                  }
-                  return <AgentPanelView />;
-                }
-                if (panel.id === "runtime") {
-                  if (isDockCollapsed(layout(), "bottom")) {
-                    return (
-                      <View class="h-full items-center justify-center">
-                        <TipTextButton label="Expand runtime preview" onPress={collapseBottom}>
-                          <Text class="text-[10px] text-muted-foreground">Runtime</Text>
-                        </TipTextButton>
-                      </View>
-                    );
-                  }
-                  return <RuntimePanelView />;
-                }
+                if (panel.id === "tree") return <TreeDockPanel />;
+                if (panel.id === "agents") return <AgentsDockPanel />;
+                if (panel.id === "runtime") return <RuntimeDockPanel />;
                 if (panel.id === SETTINGS_PANEL) return <SettingsPanelView />;
                 const path = pathFromFilePanel(panel.id);
                 if (path) return <EditorPanelView path={path} />;

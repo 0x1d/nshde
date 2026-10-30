@@ -10,8 +10,11 @@ const DOCK_TITLES: Record<string, string> = {
   [SETTINGS_PANEL]: "Settings",
 };
 
-/** Icon-only rail width (left/right/bottom collapsed). */
-export const DOCK_RAIL_SIZE = 28;
+/** Collapsed rail width (NSH `DockArea` enforces at least 100pt on dock edges). */
+export const DOCK_RAIL_SIZE = 100;
+
+/** Sizes at or below this show icon-only rail content, not the full panel. */
+export const DOCK_COLLAPSED_THRESHOLD = DOCK_RAIL_SIZE + 8;
 
 export function filePanelId(path: string): string {
   return `${FILE_PREFIX}${path}`;
@@ -49,7 +52,7 @@ export function toggleDockCollapsed(
   const region = layout[placement];
   if (!region) return layout;
   const current = region.size ?? DOCK_DEFAULT_SIZE[placement];
-  if (!collapsed && current > DOCK_RAIL_SIZE + 4) {
+  if (!collapsed && current > DOCK_COLLAPSED_THRESHOLD) {
     expandedDockSizes[placement] = current;
   }
   const size = collapsed ? DOCK_RAIL_SIZE : expandedDockSizes[placement] ?? DOCK_DEFAULT_SIZE[placement];
@@ -62,7 +65,24 @@ export function toggleDockCollapsed(
 export function isDockCollapsed(layout: DockAreaLayout | undefined, placement: "left" | "right" | "bottom"): boolean {
   const region = layout?.[placement];
   if (!region || region.open === false) return true;
-  return (region.size ?? 0) <= DOCK_RAIL_SIZE + 4;
+  return (region.size ?? 0) <= DOCK_COLLAPSED_THRESHOLD;
+}
+
+/** Keep programmatic collapse and resize-handle snaps aligned with NSH minimum dock size. */
+export function normalizeDockLayout(layout: DockAreaLayout): DockAreaLayout {
+  let next = layout;
+  for (const placement of ["left", "right", "bottom"] as const) {
+    const region = next[placement];
+    if (!region || region.open === false) continue;
+    const size = region.size ?? DOCK_DEFAULT_SIZE[placement];
+    if (size <= DOCK_COLLAPSED_THRESHOLD) {
+      next = {
+        ...next,
+        [placement]: { ...region, open: true, size: DOCK_RAIL_SIZE },
+      };
+    }
+  }
+  return next;
 }
 
 function centerEditorTabs(center: DockAreaLayout["center"]): TabGroup | null {
