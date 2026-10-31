@@ -36,7 +36,7 @@ test("agents sit on the left, the explorer on the right, and a collapsed pane le
   expect(app.shows("Show editor")).toBe(false);
   expect(app.shows("Back to sessions")).toBe(false);
 
-  await app.press("Toggle runtime");
+  await app.press("Collapse runtime");
   expect(app.shows("Expand runtime")).toBe(true);
   expect(text()).toMatch(/Runtime/);
   expect(text()).toMatch(/How can I help/);
@@ -179,6 +179,11 @@ test("a phone opens an explorer file and closes its tab", async () => {
     },
   });
 
+  await app.press("Show explorer");
+  await app.press("Mount at runtime");
+  expect(app.shows("Runtime module preview")).toBe(true);
+  expect(app.shows("Explorer")).toBe(false);
+  expect(app.texts().join("\n")).toMatch(/components\/todo\.nsh\.tsx/);
   await app.press("Show explorer");
   await app.press("todo.nsh.tsx");
   expect(app.texts().join("\n")).toMatch(/components\/todo\.nsh\.tsx/);

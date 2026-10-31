@@ -27,7 +27,7 @@ export function IconButton(props: {
   class?: string;
 }) {
   return (
-    <View tooltip={<Tip label={props.label} />}>
+    <View tooltip={<Tip label={props.label} />} class="shrink-0">
       <Button
         onPress={props.onPress}
         disabled={props.disabled}
@@ -118,13 +118,14 @@ export function IconTree(props: { active?: boolean }) {
   );
 }
 
-/** Runtime mark for the phone bar: a window with the bottom edge filled. */
+/** Run mark: a play triangle. The panel-collapse glyph is a separate control. */
 export function IconRun(props: { active?: boolean }) {
   const ink = props.active ? token("brand") : token("foreground");
   return (
-    <View class="h-3.5 w-4 flex-col overflow-hidden rounded-[2px] border" style={{ borderColor: ink }}>
-      <View class="min-h-0 flex-1" />
-      <View class="h-[5px]" style={{ backgroundColor: ink }} />
+    <View class="size-4 items-center justify-center">
+      <Text class="text-[12px] leading-none" style={{ color: ink }}>
+        ▶
+      </Text>
     </View>
   );
 }

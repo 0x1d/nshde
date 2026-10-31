@@ -8,12 +8,14 @@ import {
   sessionIdFromPanel,
   SESSIONS_PANEL,
   SETTINGS_PANEL,
+  TAB_BAR,
   TAB_RAIL,
+  runtimeTabBarBox,
   tabShowsClose,
   tabTitle,
 } from "./dock-layout";
 import { EditorPanelView } from "./editor-panel";
-import { IconClose, IconLayout, IconRobot, IconTree, TipIconButton, TipTextButton } from "./icons";
+import { IconClose, IconLayout, IconRobot, IconRun, IconTree, TipIconButton, TipTextButton } from "./icons";
 import { ObjectTreePanelView } from "./object-tree-panel";
 import { RuntimePanelView } from "./runtime-panel";
 import { SessionPanelView } from "./session-panel";
@@ -102,7 +104,7 @@ function RuntimeRail(props: { onPress: () => void }) {
         accessibilityLabel="Expand runtime"
         class="h-8 flex-row items-center gap-2 rounded-md px-2.5 hover:bg-hover"
       >
-        <IconLayout edge="bottom" active />
+        <IconRun />
         <Text class="text-[13px] font-medium text-foreground">Runtime</Text>
       </Button>
     </View>
@@ -191,6 +193,14 @@ function DesktopIde() {
   };
   const hiddenPanels = () => new Set(dockPanels().filter((panel) => panel.visible === false).map((panel) => panel.id));
   const runtimeRail = () => !panelOpen("runtime");
+  const areaWidth = () => width() - (roomy() ? 96 : 0);
+  const areaHeight = () => windowSize().height - CHROME_HEIGHT - (bootError() ? 36 : 0);
+  const runtimeTabBar = () =>
+    runtimeTabBarBox(layout(), { width: areaWidth(), height: areaHeight() }, hiddenPanels(), {
+      left: shown().left,
+      right: shown().right,
+      bottom: shown().bottom,
+    });
   const agentsSpan = () => {
     if (!shown().left) return 0;
     const size = layout().left?.size;
@@ -331,6 +341,9 @@ function DesktopIde() {
                   }`}
                   style={active ? { borderTopColor: unsaved ? token("warn") : token("foreground") } : undefined}
                 >
+                  <If when={tab.panel === "runtime"}>
+                    <IconRun active={active} />
+                  </If>
                   <If when={unsaved}>
                     <View class="size-1.5 rounded-full" style={{ backgroundColor: token("warn") }} />
                   </If>
@@ -351,11 +364,6 @@ function DesktopIde() {
                     >
                       <IconClose />
                     </Button>
-                  </If>
-                  <If when={tab.panel === "runtime"}>
-                    <TipIconButton label="Collapse runtime" onPress={() => setPanelVisible("runtime", false)}>
-                      <IconLayout edge="bottom" active />
-                    </TipIconButton>
                   </If>
                 </View>
               );
@@ -382,6 +390,18 @@ function DesktopIde() {
               </View>
             )}
           />
+          <If when={!runtimeRail() && runtimeTabBar()}>
+            {(bar) => (
+              <View
+                class="absolute z-20 items-center justify-center bg-inset"
+                style={{ top: bar().y, left: bar().x + bar().width - TAB_BAR, width: TAB_BAR, height: TAB_BAR }}
+              >
+                <TipIconButton label="Collapse runtime" onPress={() => setPanelVisible("runtime", false)}>
+                  <IconLayout edge="bottom" active />
+                </TipIconButton>
+              </View>
+            )}
+          </If>
           <If when={runtimeRail()}>
             <View
               class="absolute bottom-0 z-10 h-9"

@@ -242,7 +242,9 @@ function PhoneRuntime() {
           {path() ?? "Nothing mounted"}
         </Text>
       </View>
-      <RuntimePanelView />
+      <View class="min-h-0 flex-1">
+        <RuntimePanelView />
+      </View>
     </View>
   );
 }

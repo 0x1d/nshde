@@ -15,6 +15,10 @@ const DOCK_TITLES: Record<string, string> = {
 
 /** Gallery dock tab height (`h-9`). An open DockArea dock cannot be shorter than 100 points. */
 export const TAB_RAIL = 36;
+/** Open tab row. Tabs are `h-[34px]` with the border inside the box. */
+export const TAB_BAR = 34;
+/** Split and dock handles (`basis-px`). */
+const SPLIT_HANDLE = 1;
 
 type DockNode = DockAreaLayout["center"];
 type DockPlacement = "left" | "right" | "bottom";
@@ -351,6 +355,106 @@ export function defaultDockPanels(welcomePath: string): { id: string; closable: 
     { id: agentPanelId(DEFAULT_SESSION_ID), closable: true },
     { id: filePanelId(welcomePath), closable: true },
   ];
+}
+
+export interface TabBarBox {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+function splitLengths(sizes: Array<number | null> | undefined, count: number, total: number): number[] {
+  const gaps = Math.max(0, count - 1) * SPLIT_HANDLE;
+  const available = Math.max(0, total - gaps);
+  const spec: Array<number | null> = [];
+  for (let index = 0; index < count; index += 1) spec.push(sizes?.[index] ?? null);
+  let fixed = 0;
+  let flex = 0;
+  for (const size of spec) {
+    if (typeof size === "number") fixed += size;
+    else flex += 1;
+  }
+  if (flex === 0 && fixed > 0 && fixed !== available) {
+    const scale = available / fixed;
+    return spec.map((size) => (size ?? 0) * scale);
+  }
+  const share = flex > 0 ? Math.max(0, (available - fixed) / flex) : 0;
+  return spec.map((size) => (typeof size === "number" ? size : share));
+}
+
+function findRuntimeTab(node: DockNode, box: TabBarBox, hidden: ReadonlySet<string>): TabBarBox | null {
+  if (node.type === "tabs") {
+    if (!node.panels.includes("runtime") || hidden.has("runtime")) return null;
+    return { x: box.x, y: box.y, width: box.width, height: TAB_BAR };
+  }
+  const count = node.children.length;
+  const along = node.axis === "horizontal" ? box.width : box.height;
+  const sizes = splitLengths(node.sizes, count, along);
+  let offset = 0;
+  for (let index = 0; index < count; index += 1) {
+    const child = node.children[index];
+    if (!child) continue;
+    const length = sizes[index] ?? 0;
+    const childBox: TabBarBox =
+      node.axis === "horizontal"
+        ? { x: box.x + offset, y: box.y, width: length, height: box.height }
+        : { x: box.x, y: box.y + offset, width: box.width, height: length };
+    const found = findRuntimeTab(child, childBox, hidden);
+    if (found) return found;
+    offset += length + SPLIT_HANDLE;
+  }
+  return null;
+}
+
+/**
+ * The runtime group's tab row, in DockArea coordinates. Hidden runtime has no row.
+ * `docks` is which edges are open; a missing region takes no room.
+ */
+export function runtimeTabBarBox(
+  layout: DockAreaLayout,
+  area: { width: number; height: number },
+  hidden: ReadonlySet<string>,
+  docks: { left: boolean; right: boolean; bottom: boolean },
+): TabBarBox | null {
+  let center: TabBarBox = { x: 0, y: 0, width: area.width, height: area.height };
+  const regions: Array<{ edge: "left" | "right" | "bottom"; open: boolean }> = [
+    { edge: "left", open: docks.left },
+    { edge: "right", open: docks.right },
+    { edge: "bottom", open: docks.bottom },
+  ];
+  for (const { edge, open } of regions) {
+    const region = layout[edge];
+    if (!region || !open) continue;
+    const size = typeof region.size === "number" ? region.size : 200;
+    if (edge === "left") {
+      const found = findRuntimeTab(region.layout, { x: 0, y: 0, width: size, height: area.height }, hidden);
+      if (found) return found;
+      center = {
+        x: center.x + size + SPLIT_HANDLE,
+        y: center.y,
+        width: Math.max(0, center.width - size - SPLIT_HANDLE),
+        height: center.height,
+      };
+    } else if (edge === "right") {
+      const found = findRuntimeTab(
+        region.layout,
+        { x: area.width - size, y: 0, width: size, height: area.height },
+        hidden,
+      );
+      if (found) return found;
+      center = { ...center, width: Math.max(0, center.width - size - SPLIT_HANDLE) };
+    } else {
+      const found = findRuntimeTab(
+        region.layout,
+        { x: center.x, y: area.height - size, width: center.width, height: size },
+        hidden,
+      );
+      if (found) return found;
+      center = { ...center, height: Math.max(0, center.height - size - SPLIT_HANDLE) };
+    }
+  }
+  return findRuntimeTab(layout.center, center, hidden);
 }
 
 export function activeFilePath(layout: DockAreaLayout | undefined): string | null {
