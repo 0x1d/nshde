@@ -33,6 +33,8 @@ test("agents sit on the left, the explorer on the right, and a collapsed pane le
   expect(text()).toMatch(/No components yet/);
   expect(app.shows("Agents")).toBe(true);
   expect(app.shows("Expand runtime")).toBe(false);
+  expect(app.shows("Show editor")).toBe(false);
+  expect(app.shows("Back to sessions")).toBe(false);
 
   await app.press("Toggle runtime");
   expect(app.shows("Expand runtime")).toBe(true);
@@ -100,6 +102,99 @@ test("the editor keeps what you type", async () => {
   const app = await open("./App.tsx", { width: 1280, height: 800, platform: "web", network });
   await app.type("components/welcome.nsh.tsx", "stay");
   expect(app.texts().join("\n")).toMatch(/stay/);
+});
+
+const phone = { width: 390, height: 844, platform: "web" as const, network };
+
+test("a phone keeps one section on screen and can leave it", async () => {
+  const app = await open("./App.tsx", phone);
+  const text = () => app.texts().join("\n");
+
+  expect(app.shows("Show editor")).toBe(true);
+  expect(app.shows("Toggle agents")).toBe(false);
+  expect(app.shows("Expand runtime")).toBe(false);
+  expect(text()).not.toMatch(/How can I help/);
+  expect(text()).toMatch(/welcome\.nsh\.tsx/);
+
+  await app.type("components/welcome.nsh.tsx", "stay");
+  expect(text()).toMatch(/stay/);
+
+  await app.press("Show agents");
+  expect(text()).not.toMatch(/How can I help/);
+  expect(app.shows("New agent")).toBe(true);
+  expect(text()).toMatch(/Sessions/);
+
+  await app.press("Open New agent");
+  expect(text()).toMatch(/How can I help/);
+  await app.press("Agent role");
+  await app.press("Architect");
+  expect(app.texts().join(" ")).toMatch(/Architect/);
+  await app.press("Back to sessions");
+  expect(text()).not.toMatch(/How can I help/);
+
+  await app.press("Show editor");
+  expect(text()).toMatch(/stay/);
+  expect(text()).not.toMatch(/How can I help/);
+
+  await app.press("Show explorer");
+  expect(text()).toMatch(/Explorer/);
+  expect(text()).toMatch(/No components yet/);
+  await app.press("Show runtime");
+  expect(app.shows("Runtime module preview")).toBe(true);
+  expect(app.shows("No components yet")).toBe(false);
+  await app.press("Show editor");
+  expect(app.shows("Runtime module preview")).toBe(false);
+
+  await app.press("Settings");
+  expect(app.shows("File storage backend")).toBe(true);
+  await app.press("Close Settings");
+  expect(app.shows("File storage backend")).toBe(false);
+  expect(text()).toMatch(/welcome\.nsh\.tsx/);
+});
+
+test("a phone opens an explorer file and closes its tab", async () => {
+  const app = await open("./App.tsx", {
+    ...phone,
+    network: {
+      ...network,
+      "GET http://127.0.0.1:43123/api/storage?tree=1": {
+        body: {
+          backend: "memory",
+          tree: [
+            {
+              path: "components",
+              name: "components",
+              kind: "directory",
+              children: [
+                { path: "components/welcome.nsh.tsx", name: "welcome.nsh.tsx", kind: "file" },
+                { path: "components/todo.nsh.tsx", name: "todo.nsh.tsx", kind: "file" },
+              ],
+            },
+          ],
+        },
+      },
+      "GET http://127.0.0.1:43123/api/storage?path=components%2Ftodo.nsh.tsx": {
+        body: { content: "export function Todo() { return null }\n" },
+      },
+    },
+  });
+
+  await app.press("Show explorer");
+  await app.press("todo.nsh.tsx");
+  expect(app.texts().join("\n")).toMatch(/components\/todo\.nsh\.tsx/);
+  expect(app.shows("No components yet")).toBe(false);
+  expect(app.shows("Close todo.nsh.tsx")).toBe(true);
+
+  await app.press("Close todo.nsh.tsx");
+  expect(app.shows("Close todo.nsh.tsx")).toBe(false);
+  expect(app.texts().join("\n")).toMatch(/welcome\.nsh\.tsx/);
+
+  await app.press("Close welcome.nsh.tsx");
+  expect(app.shows("Browse files")).toBe(true);
+  await app.press("Browse files");
+  expect(app.texts().join("\n")).toMatch(/todo\.nsh\.tsx/);
+  await app.press("todo.nsh.tsx");
+  expect(app.texts().join("\n")).toMatch(/components\/todo\.nsh\.tsx/);
 });
 
 test("the agent role menu updates the selected role", async () => {

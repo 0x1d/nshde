@@ -1,6 +1,7 @@
 import { Scroll, Text, View } from "nsh";
 import { Button } from "nsh/base";
 import type { StorageBackend } from "../lib/storage/types";
+import { isPhoneWidth } from "./phone";
 import { backend, changeBackend } from "./store";
 
 export function SettingsPanelView() {
@@ -20,7 +21,11 @@ export function SettingsPanelView() {
                 <Button
                   onPress={() => void changeBackend(b())}
                   selected={backend() === b()}
-                  class="rounded-md px-3 py-1.5 text-sm font-medium selected:bg-primary selected:text-primary-foreground hover:bg-hover"
+                  class={
+                    isPhoneWidth()
+                      ? "h-11 rounded-md px-3 py-1.5 text-sm font-medium selected:bg-primary selected:text-primary-foreground hover:bg-hover"
+                      : "rounded-md px-3 py-1.5 text-sm font-medium selected:bg-primary selected:text-primary-foreground hover:bg-hover"
+                  }
                 >
                   <Text class={backend() === b() ? "text-primary-foreground" : "text-foreground"}>{b()}</Text>
                 </Button>

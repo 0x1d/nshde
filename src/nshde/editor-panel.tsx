@@ -1,5 +1,6 @@
 import { Text, token, untracked, View } from "nsh";
 import { Button, Editor } from "nsh/base";
+import { isPhoneWidth } from "./phone";
 import {
   editorCache,
   editorEpoch,
@@ -15,7 +16,10 @@ export function EditorPanelView(props: { path: string }) {
 
   return (
     <View class="flex-1 bg-background">
-      <View accessibilityLabel="Editor" class="h-8 flex-row items-center gap-2 border-b border-line bg-inset px-3">
+      <View
+        accessibilityLabel={isPhoneWidth() ? "Editor path" : "Editor"}
+        class={`${isPhoneWidth() ? "h-11" : "h-8"} flex-row items-center gap-2 border-b border-line bg-inset px-3`}
+      >
         <Text numberOfLines={1} class="min-w-0 flex-1 font-mono text-[12px] text-muted-foreground">
           {props.path}
         </Text>
@@ -23,7 +27,7 @@ export function EditorPanelView(props: { path: string }) {
           onPress={() => void saveFile(props.path)}
           disabled={binary() || !unsaved()}
           accessibilityLabel="Save file"
-          class="h-6 flex-row items-center rounded-md px-1.5 hover:bg-hover active:opacity-70 disabled:opacity-40"
+          class={`${isPhoneWidth() ? "h-11 px-3" : "h-6 px-1.5"} flex-row items-center rounded-md hover:bg-hover active:opacity-70 disabled:opacity-40`}
         >
           <Text
             class={`text-[12px] font-medium ${unsaved() ? "" : "text-faint"}`}
@@ -56,7 +60,7 @@ function EditorBody(props: { path: string }) {
             defaultValue={value}
             language={languageForPath(props.path)}
             lineNumbers
-            softWrap={false}
+            softWrap={isPhoneWidth()}
             readOnly={props.path.endsWith(".wasm")}
             onChange={(next) => {
               if (typeof next !== "string") return;

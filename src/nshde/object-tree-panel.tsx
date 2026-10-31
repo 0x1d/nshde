@@ -3,6 +3,7 @@ import { Scroll, signal, Text, token, View } from "nsh";
 import { Button, Collapsible } from "nsh/base";
 import type { TreeNode } from "./api";
 import { IconButton, IconChevron, IconLive, IconPlay } from "./icons";
+import { isPhoneWidth } from "./phone";
 import { isPathDirty, mountRuntime, openFileInEditor, runtimePath, selectedPath, tree } from "./store";
 
 function TreeRow(props: {
@@ -17,14 +18,18 @@ function TreeRow(props: {
   const dirty = () => !isDir && isPathDirty(props.node.path);
   return (
     <View
-      class={`h-6 flex-row items-center gap-1 rounded-sm pr-1 ${isSelected() ? "bg-accent" : "hover:bg-hover"}`}
+      class={`${isPhoneWidth() ? "min-h-11 active:opacity-80" : "h-6"} flex-row items-center gap-1 rounded-sm pr-1 ${isSelected() ? "bg-accent" : "hover:bg-hover"}`}
       style={{ paddingLeft: 4 + props.depth * 12 }}
     >
       <Button
         onPress={props.onPress}
         accessibilityLabel={props.node.name}
         accessibilityState={isDir ? { expanded: !!props.open } : undefined}
-        class="min-w-0 flex-1 flex-row items-center gap-1.5 px-0 hover:bg-transparent"
+        class={
+          isPhoneWidth()
+            ? "min-w-0 flex-1 flex-row items-center gap-1.5 self-stretch px-0 hover:bg-transparent"
+            : "min-w-0 flex-1 flex-row items-center gap-1.5 px-0 hover:bg-transparent"
+        }
       >
         <If when={isDir} else={<View class="w-3.5" />}>
           <IconChevron open={props.open} />

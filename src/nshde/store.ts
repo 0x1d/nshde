@@ -12,6 +12,7 @@ import {
   type TreeNode,
 } from "./api";
 import {
+  activatePanel,
   activeFilePath,
   addFileTab,
   agentPanelId,
@@ -23,8 +24,10 @@ import {
   openSettingsTab,
   panelClosable,
   pathFromFilePanel,
+  removePanelFromLayout,
   SETTINGS_PANEL,
 } from "./dock-layout";
+import { isPhoneWidth } from "./phone";
 
 const WELCOME = "components/welcome.nsh.tsx";
 
@@ -52,6 +55,12 @@ export const runtimeRevision = signal(0);
 export const backend = signal<StorageBackend>("fs");
 export const previewSrc = signal("http://127.0.0.1:43123/preview/blank");
 export const bootError = signal<string | null>(null);
+
+export type PhonePane = "editor" | "agents" | "explorer" | "runtime";
+/** Which full-screen section the phone shell shows. The wide layout ignores it. */
+export const phonePane = signal<PhonePane>("editor");
+/** Agents on a phone: the session list, or the open conversation. */
+export const phoneAgentsPage = signal<"list" | "chat">("list");
 
 const editorCache = signal<Record<string, { value: string; dirty: boolean; mountKey: number }>>({});
 /** Bumps when a file is loaded from outside the editor. Typing does not touch it, so the editor is not rebuilt on each key. */
@@ -81,12 +90,20 @@ export function createAgentSession() {
     sessions.set([blankSession(id), ...sessions()]);
     ensureDockPanel(panelId);
     dockLayout.set(openAgentTab(dockLayout(), panelId));
+    if (isPhoneWidth()) {
+      phonePane.set("agents");
+      phoneAgentsPage.set("chat");
+    }
   });
 }
 
 export function focusAgentSession(id: string) {
   ensureDockPanel(agentPanelId(id));
   dockLayout.set(openAgentTab(dockLayout(), agentPanelId(id)));
+  if (isPhoneWidth()) {
+    phonePane.set("agents");
+    phoneAgentsPage.set("chat");
+  }
 }
 
 function stashCurrentEditor() {
@@ -147,14 +164,34 @@ export function openFileInEditor(path: string) {
   const id = filePanelId(path);
   stashCurrentEditor();
   ensureDockPanel(id);
-  if (dockArea) dockArea.addPanel(id, "center");
+  if (dockArea && !isPhoneWidth()) dockArea.addPanel(id, "center");
   else dockLayout.set(addFileTab(dockLayout(), path));
+  if (isPhoneWidth()) phonePane.set("editor");
   void loadFile(path);
 }
 
 export function openSettingsInEditor() {
   ensureDockPanel(SETTINGS_PANEL);
   dockLayout.set(openSettingsTab(dockLayout()));
+  if (isPhoneWidth()) phonePane.set("editor");
+}
+
+export function selectEditorTab(id: string) {
+  const next = activatePanel(dockLayout(), id);
+  dockLayout.set(next);
+  syncActiveEditorFromLayout(next);
+}
+
+/** Removes a panel from the layout the phone shell owns. The wide dock closes through its ref. */
+export function dismissPanel(id: string) {
+  const next = removePanelFromLayout(dockLayout(), id);
+  dockLayout.set(next);
+  const path = activeFilePath(next);
+  if (!path) {
+    selectedPath.set(null);
+    return;
+  }
+  syncActiveEditorFromLayout(next);
 }
 
 export function isPathDirty(path: string): boolean {
@@ -206,9 +243,10 @@ export function handleModuleGenerated(path: string, source: string) {
       ...editorCache(),
       [path]: { value: source, dirty: false, mountKey },
     });
-    if (!dockArea) dockLayout.set(addFileTab(dockLayout(), path));
+    if (!dockArea || isPhoneWidth()) dockLayout.set(addFileTab(dockLayout(), path));
+    if (isPhoneWidth()) phonePane.set("editor");
   });
-  dockArea?.addPanel(id, "center");
+  if (dockArea && !isPhoneWidth()) dockArea.addPanel(id, "center");
 }
 
 export async function changeBackend(next: StorageBackend) {
@@ -222,6 +260,7 @@ export async function changeBackend(next: StorageBackend) {
 export function mountRuntime(path: string) {
   runtimePath.set(path);
   runtimeRevision.update((r) => r + 1);
+  if (isPhoneWidth()) phonePane.set("runtime");
 }
 
 export function onEditorValueChange(path: string, value: string) {
