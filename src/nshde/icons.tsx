@@ -1,9 +1,12 @@
 import type { JSX } from "nsh";
 import { Text, token, View } from "nsh";
 import { Button, Tooltip } from "nsh/base";
+import { isPhoneWidth } from "./phone";
 
-const iconBtn =
-  "size-6 items-center justify-center rounded-md hover:bg-foreground/10 active:opacity-70 disabled:opacity-40";
+function iconButtonClass(): string {
+  const box = isPhoneWidth() ? "size-11" : "size-6";
+  return `${box} items-center justify-center rounded-md hover:bg-foreground/10 active:opacity-70 disabled:opacity-40`;
+}
 
 function Tip(props: { label: string }) {
   return (
@@ -30,7 +33,7 @@ export function IconButton(props: {
         disabled={props.disabled}
         selected={props.selected}
         accessibilityLabel={props.label}
-        class={`${iconBtn} ${props.selected ? "bg-foreground/15" : ""} ${props.class ?? ""}`}
+        class={`${iconButtonClass()} ${props.selected ? "bg-foreground/15" : ""} ${props.class ?? ""}`}
       >
         {props.children}
       </Button>
@@ -111,6 +114,29 @@ export function IconTree(props: { active?: boolean }) {
         <View class="size-1 rounded-[1px]" style={{ backgroundColor: railInk(props.active) }} />
         <View class="h-px min-w-0 flex-1" style={{ backgroundColor: railInk(props.active) }} />
       </View>
+    </View>
+  );
+}
+
+/** Runtime mark for the phone bar: a window with the bottom edge filled. */
+export function IconRun(props: { active?: boolean }) {
+  const ink = props.active ? token("brand") : token("foreground");
+  return (
+    <View class="h-3.5 w-4 flex-col overflow-hidden rounded-[2px] border" style={{ borderColor: ink }}>
+      <View class="min-h-0 flex-1" />
+      <View class="h-[5px]" style={{ backgroundColor: ink }} />
+    </View>
+  );
+}
+
+/** Editor mark for the phone bar: a page with three lines. */
+export function IconEditor(props: { active?: boolean }) {
+  const ink = props.active ? token("brand") : token("foreground");
+  return (
+    <View class="h-4 w-3.5 justify-center gap-0.5 rounded-[2px] border px-0.5" style={{ borderColor: ink }}>
+      <View class="h-px" style={{ backgroundColor: ink }} />
+      <View class="h-px w-2" style={{ backgroundColor: ink }} />
+      <View class="h-px" style={{ backgroundColor: ink }} />
     </View>
   );
 }

@@ -17,6 +17,8 @@ import { IconClose, IconLayout, IconRobot, IconTree, TipIconButton, TipTextButto
 import { ObjectTreePanelView } from "./object-tree-panel";
 import { RuntimePanelView } from "./runtime-panel";
 import { SessionPanelView } from "./session-panel";
+import { MobileIde } from "./mobile-ide";
+import { isPhoneWidth } from "./phone";
 import { SettingsPanelView } from "./settings-panel";
 import {
   backend,
@@ -147,6 +149,15 @@ function StatusBar() {
 
 export function IdeApp() {
   bootIdeData();
+  const phone = () => isPhoneWidth();
+  return (
+    <If when={phone()} else={<DesktopIde />}>
+      <MobileIde />
+    </If>
+  );
+}
+
+function DesktopIde() {
   const layout = dockLayout;
   const width = () => windowSize().width;
   const roomy = () => width() >= 840;

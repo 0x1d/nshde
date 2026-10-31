@@ -217,12 +217,112 @@ export function collectCenterPanelIds(layout: DockAreaLayout | undefined): strin
   return [...ids];
 }
 
+/** File and settings tabs in the editor group, in order. Tool groups are not included. */
+export function editorTabs(layout: DockAreaLayout | undefined): { id: string; active: boolean }[] {
+  if (!layout) return [];
+  const group = centerEditorTabs(layout.center);
+  if (!group) return [];
+  const activeIndex = group.activeIndex ?? 0;
+  return group.panels.map((id, index) => ({ id, active: index === activeIndex }));
+}
+
+function insertEditorGroup(center: DockNode, panelId: string): DockNode {
+  const group: TabGroup = { type: "tabs", panels: [panelId], activeIndex: 0 };
+  if (center.type === "split" && center.axis === "horizontal" && center.children.length > 0) {
+    const first = center.children[0];
+    const column: DockNode =
+      first.type === "split" && first.axis === "vertical"
+        ? {
+            ...first,
+            children: [group, ...first.children],
+            sizes: [null, ...(first.sizes ?? first.children.map(() => null))],
+          }
+        : { type: "split", axis: "vertical", sizes: [null, null], children: [group, first] };
+    return { ...center, children: [column, ...center.children.slice(1)] };
+  }
+  return { type: "split", axis: "vertical", sizes: [null, null], children: [group, center] };
+}
+
 export function addCenterTab(layout: DockAreaLayout, panelId: string): DockAreaLayout {
+  if (!centerEditorTabs(layout.center)) {
+    return { ...layout, center: insertEditorGroup(layout.center, panelId) };
+  }
   const center = updateEditorGroup(layout.center, (group) => {
     const panels = group.panels.includes(panelId) ? group.panels : [...group.panels, panelId];
     return { ...group, panels, activeIndex: panels.indexOf(panelId) };
   });
   return { ...layout, center };
+}
+
+function removeFromNode(node: DockNode, id: string): DockNode | null {
+  if (node.type === "tabs") {
+    const index = node.panels.indexOf(id);
+    if (index < 0) return node;
+    const panels = node.panels.filter((panel) => panel !== id);
+    if (panels.length === 0) return null;
+    let active = node.activeIndex ?? 0;
+    if (index < active) active -= 1;
+    if (active >= panels.length) active = panels.length - 1;
+    return { ...node, panels, activeIndex: active };
+  }
+  let changed = false;
+  const children: DockNode[] = [];
+  const sizes: Array<number | null> = [];
+  node.children.forEach((child, childIndex) => {
+    const next = removeFromNode(child, id);
+    if (next !== child) changed = true;
+    if (!next) return;
+    children.push(next);
+    sizes.push(node.sizes?.[childIndex] ?? null);
+  });
+  if (!changed) return node;
+  if (children.length === 0) return null;
+  if (children.length === 1) return children[0];
+  return { ...node, children, sizes };
+}
+
+function activateInNode(node: DockNode, id: string): DockNode {
+  if (node.type === "tabs") {
+    const index = node.panels.indexOf(id);
+    if (index < 0 || index === (node.activeIndex ?? 0)) return node;
+    return { ...node, activeIndex: index };
+  }
+  let changed = false;
+  const children = node.children.map((child) => {
+    const next = activateInNode(child, id);
+    if (next !== child) changed = true;
+    return next;
+  });
+  return changed ? ({ ...node, children } as DockNode) : node;
+}
+
+function mapDock(region: DockAreaLayout["left"], visit: (node: DockNode) => DockNode | null) {
+  if (!region) return region;
+  const next = visit(region.layout);
+  if (next === region.layout) return region;
+  return { ...region, layout: next ?? { type: "tabs" as const, panels: [], activeIndex: 0 } };
+}
+
+/** Drops a panel and collapses a split that would be left with one child. */
+export function removePanelFromLayout(layout: DockAreaLayout, id: string): DockAreaLayout {
+  return {
+    ...layout,
+    center: removeFromNode(layout.center, id) ?? { type: "tabs", panels: [], activeIndex: 0 },
+    left: mapDock(layout.left, (node) => removeFromNode(node, id)),
+    right: mapDock(layout.right, (node) => removeFromNode(node, id)),
+    bottom: mapDock(layout.bottom, (node) => removeFromNode(node, id)),
+  };
+}
+
+/** Shows `id` in whichever group already holds it. */
+export function activatePanel(layout: DockAreaLayout, id: string): DockAreaLayout {
+  return {
+    ...layout,
+    center: activateInNode(layout.center, id),
+    left: layout.left ? { ...layout.left, layout: activateInNode(layout.left.layout, id) } : layout.left,
+    right: layout.right ? { ...layout.right, layout: activateInNode(layout.right.layout, id) } : layout.right,
+    bottom: layout.bottom ? { ...layout.bottom, layout: activateInNode(layout.bottom.layout, id) } : layout.bottom,
+  };
 }
 
 export function addFileTab(layout: DockAreaLayout, path: string): DockAreaLayout {

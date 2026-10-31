@@ -2,6 +2,7 @@ import { batch, effect, platform, Scroll, signal, Text, token, View } from "nsh"
 import { Button, Input, Menu, MenuItem, TextView } from "nsh/base";
 import { AGENTS, type AgentDefinition, type AgentId, type AgentMessage } from "../lib/agents";
 import { generateModule, listAgents } from "./api";
+import { isPhoneWidth } from "./phone";
 import { handleModuleGenerated, patchSession, sessions } from "./store";
 
 const PROMPTS = [
@@ -183,7 +184,7 @@ function Conversation(props: { sessionId: string }) {
                 onPress={() => void submit(chip().text)}
                 disabled={loading()}
                 accessibilityLabel={chip().label}
-                class="h-8 justify-center rounded-full border border-border bg-card px-3 active:opacity-80 disabled:opacity-40"
+                class={`${isPhoneWidth() ? "h-11" : "h-8"} justify-center rounded-full border border-border bg-card px-3 active:opacity-80 disabled:opacity-40`}
               >
                 <Text class="text-[13px] font-medium text-foreground">{chip().label}</Text>
               </Button>
@@ -220,7 +221,7 @@ function Conversation(props: { sessionId: string }) {
               trigger={
                 <View
                   accessibilityLabel="Agent role"
-                  class="h-7 flex-row items-center gap-1 rounded-md px-2 hover:bg-hover active:opacity-80"
+                  class={`${isPhoneWidth() ? "h-11" : "h-7"} flex-row items-center gap-1 rounded-md px-2 hover:bg-hover active:opacity-80`}
                 >
                   <Text class="text-[12px] font-medium text-foreground">{activeMeta()?.name ?? "Implementer"}</Text>
                   <Text class="text-[10px] text-muted-foreground">▾</Text>
@@ -244,7 +245,7 @@ function Conversation(props: { sessionId: string }) {
               onPress={() => void submit()}
               disabled={!canSend()}
               accessibilityLabel="Send"
-              class="size-8 items-center justify-center rounded-full bg-brand disabled:opacity-35 active:opacity-90"
+              class={`${isPhoneWidth() ? "size-11 shrink-0" : "size-8"} items-center justify-center rounded-full bg-brand disabled:opacity-35 active:opacity-90`}
             >
               <Text class="text-sm font-semibold text-background">↑</Text>
             </Button>

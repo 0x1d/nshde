@@ -2,6 +2,7 @@ import { Scroll, Text, View } from "nsh";
 import { Button } from "nsh/base";
 import { activeAgentPanel, agentPanelId } from "./dock-layout";
 import { IconPlus } from "./icons";
+import { isPhoneWidth } from "./phone";
 import { createAgentSession, dockLayout, focusAgentSession, sessions, type AgentSession } from "./store";
 
 function preview(session: AgentSession): string {
@@ -18,7 +19,11 @@ function SessionRow(props: { session: AgentSession }) {
       selected={active()}
       onPress={() => focusAgentSession(props.session.id)}
       accessibilityLabel={`Open ${props.session.title}`}
-      class={`gap-0.5 rounded-md px-2.5 py-2 ${active() ? "bg-accent" : "hover:bg-hover"}`}
+      class={
+        isPhoneWidth()
+          ? `min-h-11 justify-center gap-0.5 rounded-md px-2.5 py-2 active:opacity-80 ${active() ? "bg-accent" : "hover:bg-hover"}`
+          : `gap-0.5 rounded-md px-2.5 py-2 ${active() ? "bg-accent" : "hover:bg-hover"}`
+      }
     >
       <Text numberOfLines={1} class="text-[13px] font-medium text-foreground">
         {props.session.title}
@@ -38,7 +43,7 @@ export function SessionPanelView() {
         <Button
           onPress={() => createAgentSession()}
           accessibilityLabel="New agent"
-          class="h-8 flex-row items-center gap-2 rounded-md px-2 hover:bg-hover active:opacity-80"
+          class={`${isPhoneWidth() ? "h-11" : "h-8"} flex-row items-center gap-2 rounded-md px-2 hover:bg-hover active:opacity-80`}
         >
           <IconPlus />
           <Text class="text-[13px] font-medium text-foreground">New agent</Text>
