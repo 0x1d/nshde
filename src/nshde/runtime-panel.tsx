@@ -6,7 +6,14 @@ export function RuntimePanelView() {
   return (
     <View class="flex-1 bg-inset">
       <If when={runtimePath()} else={<EmptyState />}>
-        {() => <WebView src={previewSrc()} class="flex-1 bg-card" accessibilityLabel="Runtime module preview" />}
+        {() => (
+          <WebView
+            src={previewSrc()}
+            class="min-h-0 flex-1 bg-card"
+            style={{ flex: 1 }}
+            accessibilityLabel="Runtime module preview"
+          />
+        )}
       </If>
     </View>
   );

@@ -1,4 +1,3 @@
-import previewPage from "../preview.html";
 import {
   handleAgentsGet,
   handleAgentsPost,
@@ -7,9 +6,11 @@ import {
   handleStorageGet,
   handleStoragePost,
 } from "@/lib/api/http";
+import { buildPreviewBundle } from "@/lib/preview-bundle";
 import { resolveWebRoot, serveWebFile } from "@/lib/web-static";
 
 const port = Number(process.env.PORT) || 43123;
+const preview = await buildPreviewBundle();
 const webRoot = resolveWebRoot();
 if (webRoot) {
   console.log(`nshde web UI: ${webRoot}`);
@@ -45,11 +46,20 @@ async function withCorsAsync(fn: (req: Request) => Response | Promise<Response>,
   }
 }
 
+function asset(body: string, contentType: string): Response {
+  const headers = new Headers(corsHeaders());
+  headers.set("Content-Type", contentType);
+  headers.set("Cache-Control", "no-cache");
+  return new Response(body, { headers });
+}
+
 const server = Bun.serve({
   port,
   routes: {
-    "/preview": previewPage,
-    "/preview/blank": previewPage,
+    "/preview": () => asset(preview.html, "text/html; charset=utf-8"),
+    "/preview/blank": () => asset(preview.html, "text/html; charset=utf-8"),
+    "/preview/runtime.js": () => asset(preview.js, "text/javascript; charset=utf-8"),
+    "/preview/runtime.css": () => asset(preview.css, "text/css; charset=utf-8"),
     "/favicon.ico": Bun.file("public/favicon.ico"),
     "/api/agents": {
       GET: () => withCors(handleAgentsGet()),
